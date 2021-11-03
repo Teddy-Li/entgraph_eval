@@ -2,7 +2,9 @@
 import numpy as np
 from nltk.corpus import wordnet as wn
 from nltk.corpus import stopwords
+import random
 debug = False
+
 
 from .qa_utils import get_lemmas_only_verbs, get_lemmas_no_stopwords, get_lemmas, get_tuples
 
@@ -57,7 +59,10 @@ class Baseline:
             return True
         if q_arg == get_lemmas_no_stopwords(a[0], wn.NOUN):
             return False
-        return Baseline.aligned_args(a,q)
+        if random.random() > 0.2:
+            return Baseline.aligned_args(a,q)
+        else:
+            return False
         #raise Exception('HORRIBLE BUG!!!', q, " ", a)
 
     def same_negation(self, q, a):

@@ -17,6 +17,8 @@ def opts(actual_args=None):
     def boolflag(name, description, default=False, **kwargs):
         opts.add_argument(('--' if len(name)>1 else '-')+name, action='store_false' if default else 'store_true', help=description, **kwargs)
 
+    flag("eval_range", "full/nosame/google_PLM", default='full')
+
     boolflag("write", "whether we should write pr_rec, auc and tp_fp")
     boolflag("no_lemma_baseline", "should we ignore lemma_baseline?")
     boolflag("no_constraints", "should we ignore constraints?")
@@ -36,6 +38,8 @@ def opts(actual_args=None):
     boolflag("backupAvg", "backup to average for out of graph predicates")
     boolflag("dev", "only on dev data")
     boolflag("test", "on test data")
+    boolflag("dev_bt", "on dev backtranslated data")
+    boolflag("test_bt", "on test backtranslated data")
     boolflag("dev_v2", "only on dev data, version 2")#version 2 built on 04/04/2019
     boolflag("test_v2", "on test data, version 2")#version 2 built on 04/04/2019
     boolflag("dev_v3", "only on dev data, version 2")  # version 2 built on 04/04/2019
@@ -66,6 +70,13 @@ def opts(actual_args=None):
     flag("outDir", "optionally, where to output the pr_recs")
     flag("sim_suffix", "similarity files suffix", ftype=str)
     boolflag("debug", "writing debug info")
+
+    flag("typed_mapping_fn", "file name to the mapping between typed triples and levy/holt's entries", ftype=str, default='')
+    flag("untyped_mapping_fn", "File name to the mapping between untyped triples and levy/holt's entries", ftype=str, default='')
+    boolflag("max_pooling", "whether to use max pooling for mapping multiple typed triples.")
+    boolflag("avg_pooling", "whether to use avg pooling for mapping multiple typed triples.")
+    boolflag("no_lemma", "only exact baseline.")
+    boolflag("use_untyped_mapping", "whether to use untyped mapping between triples and levy/holt's entries.")
 
     boolflag("LDA", "full distributional LDA probabilities for types")  # deprecated
 
