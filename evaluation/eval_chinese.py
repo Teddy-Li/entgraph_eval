@@ -503,7 +503,7 @@ def fit_predict(data_list, predPairFeats,predPairFeatsTyped,predPairConnectedLis
         X_dev_typed = [x[0:len(X_dev_typed[0])//2] for x in X_dev_typed]#only the first half!
 
     assert not args.supervised
-    if args.oneFeat:
+    if args.oneFeat:  # this flag has been set to ``True'' - Teddy
         if not args.saveMemory:
             if not args.useSims:
                 f_idx = graph.Graph.featIdx
@@ -1118,7 +1118,7 @@ if args.dev:
         args.untyped_mapping_fn = root + 'dev_ent_chinese/dev_exhaust_fineonly_rellevy_mapping.txt'
     else:
         raise AssertionError
-elif args.test:
+if args.test:
     if args.eval_range == 'full':
         fnames_CCG = [None, root + "chinese_ent/implications_test_rels.txt"]
         fnames_oie = [None, None]

@@ -1,35 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="3a9bde72-afa7-4492-ba11-b9d86699c11e" name="Default" comment="">
-      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/Project_Default.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/bert_baseline/bert_similarity.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/bert_baseline/bert_template.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/evaluation/EG_stats.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/evaluation/error_ana.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/evaluation/eval_chinese.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/evaluation/eval_merged.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/evaluation/util_chinese.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/gfiles/count_rels.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/gfiles/get_EM_false_positives.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/gfiles/plotting_merged.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/gfiles/remove_spaces.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/gfiles/results/pr_rec/global_scores.csv" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/gfiles/results/pr_rec_V1/bert_sim_scores.csv" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/gfiles/results/pr_rec_V1/global_scores.csv" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/gfiles/results_en/pr_rec/temp.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/lemma_baseline/StanfordCoreNLP.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/lemma_baseline/chinese_baselines.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/lemma_baseline/qa_utils_chinese.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/entgraph_eval.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/entgraph_eval.iml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
+    <list default="true" id="3a9bde72-afa7-4492-ba11-b9d86699c11e" name="Default" comment="stable commit 1103">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/constants/flags.py" beforeDir="false" afterPath="$PROJECT_DIR$/constants/flags.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/data/plots.py" beforeDir="false" afterPath="$PROJECT_DIR$/data/plots.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/evaluation/eval.py" beforeDir="false" afterPath="$PROJECT_DIR$/evaluation/eval.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/evaluation/util.py" beforeDir="false" afterPath="$PROJECT_DIR$/evaluation/util.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/graph/graph.py" beforeDir="false" afterPath="$PROJECT_DIR$/graph/graph.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lemma_baseline/baseline.py" beforeDir="false" afterPath="$PROJECT_DIR$/lemma_baseline/baseline.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/evaluation/eval_chinese.py" beforeDir="false" afterPath="$PROJECT_DIR$/evaluation/eval_chinese.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -76,7 +50,7 @@
       <recent name="$PROJECT_DIR$/gfiles/case_study_annotated" />
     </key>
   </component>
-  <component name="RunManager" selected="Python.count_rels">
+  <component name="RunManager" selected="Python.eval chinese orig dev exhaust apooling AVG">
     <configuration name="EG_stats en" type="PythonConfigurationType" factoryName="Python">
       <module name="entgraph_eval" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -342,7 +316,7 @@
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
       <option name="SCRIPT_NAME" value="$PROJECT_DIR$/evaluation/eval_chinese.py" />
-      <option name="PARAMETERS" value="--gpath typedEntGrDir_Chinese3_3_V3 --dev --sim_suffix _sim.txt --method global_scores_orig_dev_apooling_binc_avg --CCG 1 --typed 1 --supervised 0 --oneFeat 1 --useSims 0 --featIdx 4 --write --no_lemma_baseline --no_constraints --outDir results/pr_rec_orig_dev_exhaust_33 --eval_range orig_exhaust --avg_pooling" />
+      <option name="PARAMETERS" value="--gpath typedEntGrDir_Chinese3_3_V2 --dev --sim_suffix _sim.txt --method global_scores_orig_dev_apooling_binc_avg --CCG 1 --typed 1 --supervised 0 --oneFeat 1 --useSims 0 --featIdx 4 --write --no_lemma_baseline --no_constraints --outDir results/pr_rec_orig_dev_exhaust_33 --eval_range orig_exhaust --avg_pooling" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
       <option name="MODULE_MODE" value="false" />
@@ -1166,25 +1140,36 @@
       <option name="project" value="LOCAL" />
       <updated>1560014061426</updated>
     </task>
-    <option name="localTasksCounter" value="3" />
+    <task id="LOCAL-00003" summary="stable commit 1103">
+      <created>1635957039929</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1635957039929</updated>
+    </task>
+    <option name="localTasksCounter" value="4" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="refactoring entailment project into entgraph_eval and linkpred_entgraph" />
-    <option name="LAST_COMMIT_MESSAGE" value="refactoring entailment project into entgraph_eval and linkpred_entgraph" />
+    <MESSAGE value="stable commit 1103" />
+    <option name="LAST_COMMIT_MESSAGE" value="stable commit 1103" />
   </component>
   <component name="WindowStateProjectService">
-    <state x="2278" y="230" key="#com.intellij.execution.impl.EditConfigurationsDialog" timestamp="1634052727873">
+    <state x="2278" y="230" key="#com.intellij.execution.impl.EditConfigurationsDialog" timestamp="1635957507014">
       <screen x="1792" y="-80" width="1920" height="1200" />
     </state>
     <state x="499" y="202" key="#com.intellij.execution.impl.EditConfigurationsDialog/0.0.1792.1120/1792.-595.2560.1440@0.0.1792.1120" timestamp="1628196901518" />
     <state x="2505" y="-335" key="#com.intellij.execution.impl.EditConfigurationsDialog/0.0.1792.1120/1792.-595.2560.1440@1792.-595.2560.1440" timestamp="1633780770471" />
     <state x="259" y="287" key="#com.intellij.execution.impl.EditConfigurationsDialog/0.0.1792.1120@0.0.1792.1120" timestamp="1633827747907" />
     <state x="486" y="310" key="#com.intellij.execution.impl.EditConfigurationsDialog/0.0.1920.1200@0.0.1920.1200" timestamp="1632766605932" />
-    <state x="2505" y="-335" key="#com.intellij.execution.impl.EditConfigurationsDialog/0.25.1792.1095/1792.-595.2560.1440@1792.-595.2560.1440" timestamp="1626217483785" />
-    <state x="2278" y="230" key="#com.intellij.execution.impl.EditConfigurationsDialog/1792.-80.1920.1200/0.0.1792.1120@1792.-80.1920.1200" timestamp="1634052727873" />
-    <state width="1894" height="332" key="GridCell.Tab.0.bottom" timestamp="1634736022152">
-      <screen x="1792" y="-55" width="1920" height="1175" />
+    <state x="2278" y="230" key="#com.intellij.execution.impl.EditConfigurationsDialog/1792.-80.1920.1200/0.0.1792.1120@1792.-80.1920.1200" timestamp="1635957507014" />
+    <state x="2280" y="52" key="CommitChangelistDialog2" timestamp="1635957039741">
+      <screen x="1792" y="-80" width="1920" height="1200" />
+    </state>
+    <state x="2280" y="52" key="CommitChangelistDialog2/1792.-80.1920.1200/0.0.1792.1120@1792.-80.1920.1200" timestamp="1635957039741" />
+    <state width="1894" height="400" key="GridCell.Tab.0.bottom" timestamp="1635957771861">
+      <screen x="1792" y="-80" width="1920" height="1200" />
     </state>
     <state width="1766" height="194" key="GridCell.Tab.0.bottom/0.0.1792.1120/1792.-595.2560.1440@0.0.1792.1120" timestamp="1628196904061" />
     <state width="2534" height="565" key="GridCell.Tab.0.bottom/0.0.1792.1120/1792.-595.2560.1440@1792.-595.2560.1440" timestamp="1633782874023" />
@@ -1196,10 +1181,10 @@
     <state width="2534" height="1089" key="GridCell.Tab.0.bottom/0.25.1792.1017/1792.-570.2560.1415@1792.-570.2560.1415" timestamp="1632869564068" />
     <state width="1894" height="332" key="GridCell.Tab.0.bottom/1792.-55.1920.1175/0.25.1792.1017@1792.-55.1920.1175" timestamp="1634736022152" />
     <state width="1766" height="823" key="GridCell.Tab.0.bottom/1792.-80.1920.1200/0.0.1792.1120@0.0.1792.1120" timestamp="1632769512115" />
-    <state width="1894" height="230" key="GridCell.Tab.0.bottom/1792.-80.1920.1200/0.0.1792.1120@1792.-80.1920.1200" timestamp="1634062305201" />
+    <state width="1894" height="400" key="GridCell.Tab.0.bottom/1792.-80.1920.1200/0.0.1792.1120@1792.-80.1920.1200" timestamp="1635957771861" />
     <state width="1894" height="603" key="GridCell.Tab.0.bottom/1792.-80.1920.1200/0.25.1792.1017@1792.-80.1920.1200" timestamp="1632313793382" />
-    <state width="1894" height="332" key="GridCell.Tab.0.center" timestamp="1634736022150">
-      <screen x="1792" y="-55" width="1920" height="1175" />
+    <state width="1894" height="400" key="GridCell.Tab.0.center" timestamp="1635957771859">
+      <screen x="1792" y="-80" width="1920" height="1200" />
     </state>
     <state width="1766" height="194" key="GridCell.Tab.0.center/0.0.1792.1120/1792.-595.2560.1440@0.0.1792.1120" timestamp="1628196904059" />
     <state width="2534" height="565" key="GridCell.Tab.0.center/0.0.1792.1120/1792.-595.2560.1440@1792.-595.2560.1440" timestamp="1633782874020" />
@@ -1211,10 +1196,10 @@
     <state width="2534" height="1089" key="GridCell.Tab.0.center/0.25.1792.1017/1792.-570.2560.1415@1792.-570.2560.1415" timestamp="1632869564066" />
     <state width="1894" height="332" key="GridCell.Tab.0.center/1792.-55.1920.1175/0.25.1792.1017@1792.-55.1920.1175" timestamp="1634736022150" />
     <state width="1766" height="823" key="GridCell.Tab.0.center/1792.-80.1920.1200/0.0.1792.1120@0.0.1792.1120" timestamp="1632769512114" />
-    <state width="1894" height="230" key="GridCell.Tab.0.center/1792.-80.1920.1200/0.0.1792.1120@1792.-80.1920.1200" timestamp="1634062305199" />
+    <state width="1894" height="400" key="GridCell.Tab.0.center/1792.-80.1920.1200/0.0.1792.1120@1792.-80.1920.1200" timestamp="1635957771859" />
     <state width="1894" height="603" key="GridCell.Tab.0.center/1792.-80.1920.1200/0.25.1792.1017@1792.-80.1920.1200" timestamp="1632313793381" />
-    <state width="1894" height="332" key="GridCell.Tab.0.left" timestamp="1634736022150">
-      <screen x="1792" y="-55" width="1920" height="1175" />
+    <state width="1894" height="400" key="GridCell.Tab.0.left" timestamp="1635957771858">
+      <screen x="1792" y="-80" width="1920" height="1200" />
     </state>
     <state width="1766" height="194" key="GridCell.Tab.0.left/0.0.1792.1120/1792.-595.2560.1440@0.0.1792.1120" timestamp="1628196904058" />
     <state width="2534" height="565" key="GridCell.Tab.0.left/0.0.1792.1120/1792.-595.2560.1440@1792.-595.2560.1440" timestamp="1633782874019" />
@@ -1226,10 +1211,10 @@
     <state width="2534" height="1089" key="GridCell.Tab.0.left/0.25.1792.1017/1792.-570.2560.1415@1792.-570.2560.1415" timestamp="1632869564065" />
     <state width="1894" height="332" key="GridCell.Tab.0.left/1792.-55.1920.1175/0.25.1792.1017@1792.-55.1920.1175" timestamp="1634736022150" />
     <state width="1766" height="823" key="GridCell.Tab.0.left/1792.-80.1920.1200/0.0.1792.1120@0.0.1792.1120" timestamp="1632769512113" />
-    <state width="1894" height="230" key="GridCell.Tab.0.left/1792.-80.1920.1200/0.0.1792.1120@1792.-80.1920.1200" timestamp="1634062305199" />
+    <state width="1894" height="400" key="GridCell.Tab.0.left/1792.-80.1920.1200/0.0.1792.1120@1792.-80.1920.1200" timestamp="1635957771858" />
     <state width="1894" height="603" key="GridCell.Tab.0.left/1792.-80.1920.1200/0.25.1792.1017@1792.-80.1920.1200" timestamp="1632313793379" />
-    <state width="1894" height="332" key="GridCell.Tab.0.right" timestamp="1634736022151">
-      <screen x="1792" y="-55" width="1920" height="1175" />
+    <state width="1894" height="400" key="GridCell.Tab.0.right" timestamp="1635957771860">
+      <screen x="1792" y="-80" width="1920" height="1200" />
     </state>
     <state width="1766" height="194" key="GridCell.Tab.0.right/0.0.1792.1120/1792.-595.2560.1440@0.0.1792.1120" timestamp="1628196904060" />
     <state width="2534" height="565" key="GridCell.Tab.0.right/0.0.1792.1120/1792.-595.2560.1440@1792.-595.2560.1440" timestamp="1633782874021" />
@@ -1241,35 +1226,35 @@
     <state width="2534" height="1089" key="GridCell.Tab.0.right/0.25.1792.1017/1792.-570.2560.1415@1792.-570.2560.1415" timestamp="1632869564067" />
     <state width="1894" height="332" key="GridCell.Tab.0.right/1792.-55.1920.1175/0.25.1792.1017@1792.-55.1920.1175" timestamp="1634736022151" />
     <state width="1766" height="823" key="GridCell.Tab.0.right/1792.-80.1920.1200/0.0.1792.1120@0.0.1792.1120" timestamp="1632769512114" />
-    <state width="1894" height="230" key="GridCell.Tab.0.right/1792.-80.1920.1200/0.0.1792.1120@1792.-80.1920.1200" timestamp="1634062305200" />
+    <state width="1894" height="400" key="GridCell.Tab.0.right/1792.-80.1920.1200/0.0.1792.1120@1792.-80.1920.1200" timestamp="1635957771860" />
     <state width="1894" height="603" key="GridCell.Tab.0.right/1792.-80.1920.1200/0.25.1792.1017@1792.-80.1920.1200" timestamp="1632313793382" />
-    <state width="2534" height="495" key="GridCell.Tab.1.bottom" timestamp="1633861405590">
-      <screen x="0" y="0" width="1792" height="1120" />
+    <state width="1894" height="400" key="GridCell.Tab.1.bottom" timestamp="1635957771864">
+      <screen x="1792" y="-80" width="1920" height="1200" />
     </state>
     <state width="2534" height="495" key="GridCell.Tab.1.bottom/0.0.1792.1120/1792.-595.2560.1440@1792.-595.2560.1440" timestamp="1633779947747" />
     <state width="2534" height="495" key="GridCell.Tab.1.bottom/0.0.1792.1120@0.0.1792.1120" timestamp="1633861405590" />
-    <state width="1894" height="630" key="GridCell.Tab.1.bottom/1792.-80.1920.1200/0.0.1792.1120@1792.-80.1920.1200" timestamp="1632314434630" />
+    <state width="1894" height="400" key="GridCell.Tab.1.bottom/1792.-80.1920.1200/0.0.1792.1120@1792.-80.1920.1200" timestamp="1635957771864" />
     <state width="1894" height="603" key="GridCell.Tab.1.bottom/1792.-80.1920.1200/0.25.1792.1017@1792.-80.1920.1200" timestamp="1632313794437" />
-    <state width="2534" height="495" key="GridCell.Tab.1.center" timestamp="1633861405589">
-      <screen x="0" y="0" width="1792" height="1120" />
+    <state width="1894" height="400" key="GridCell.Tab.1.center" timestamp="1635957771863">
+      <screen x="1792" y="-80" width="1920" height="1200" />
     </state>
     <state width="2534" height="495" key="GridCell.Tab.1.center/0.0.1792.1120/1792.-595.2560.1440@1792.-595.2560.1440" timestamp="1633779947746" />
     <state width="2534" height="495" key="GridCell.Tab.1.center/0.0.1792.1120@0.0.1792.1120" timestamp="1633861405589" />
-    <state width="1894" height="630" key="GridCell.Tab.1.center/1792.-80.1920.1200/0.0.1792.1120@1792.-80.1920.1200" timestamp="1632314434628" />
+    <state width="1894" height="400" key="GridCell.Tab.1.center/1792.-80.1920.1200/0.0.1792.1120@1792.-80.1920.1200" timestamp="1635957771863" />
     <state width="1894" height="603" key="GridCell.Tab.1.center/1792.-80.1920.1200/0.25.1792.1017@1792.-80.1920.1200" timestamp="1632313794435" />
-    <state width="2534" height="495" key="GridCell.Tab.1.left" timestamp="1633861405589">
-      <screen x="0" y="0" width="1792" height="1120" />
+    <state width="1894" height="400" key="GridCell.Tab.1.left" timestamp="1635957771862">
+      <screen x="1792" y="-80" width="1920" height="1200" />
     </state>
     <state width="2534" height="495" key="GridCell.Tab.1.left/0.0.1792.1120/1792.-595.2560.1440@1792.-595.2560.1440" timestamp="1633779947745" />
     <state width="2534" height="495" key="GridCell.Tab.1.left/0.0.1792.1120@0.0.1792.1120" timestamp="1633861405589" />
-    <state width="1894" height="630" key="GridCell.Tab.1.left/1792.-80.1920.1200/0.0.1792.1120@1792.-80.1920.1200" timestamp="1632314434627" />
+    <state width="1894" height="400" key="GridCell.Tab.1.left/1792.-80.1920.1200/0.0.1792.1120@1792.-80.1920.1200" timestamp="1635957771862" />
     <state width="1894" height="603" key="GridCell.Tab.1.left/1792.-80.1920.1200/0.25.1792.1017@1792.-80.1920.1200" timestamp="1632313794434" />
-    <state width="2534" height="495" key="GridCell.Tab.1.right" timestamp="1633861405589">
-      <screen x="0" y="0" width="1792" height="1120" />
+    <state width="1894" height="400" key="GridCell.Tab.1.right" timestamp="1635957771864">
+      <screen x="1792" y="-80" width="1920" height="1200" />
     </state>
     <state width="2534" height="495" key="GridCell.Tab.1.right/0.0.1792.1120/1792.-595.2560.1440@1792.-595.2560.1440" timestamp="1633779947746" />
     <state width="2534" height="495" key="GridCell.Tab.1.right/0.0.1792.1120@0.0.1792.1120" timestamp="1633861405589" />
-    <state width="1894" height="630" key="GridCell.Tab.1.right/1792.-80.1920.1200/0.0.1792.1120@1792.-80.1920.1200" timestamp="1632314434629" />
+    <state width="1894" height="400" key="GridCell.Tab.1.right/1792.-80.1920.1200/0.0.1792.1120@1792.-80.1920.1200" timestamp="1635957771864" />
     <state width="1894" height="603" key="GridCell.Tab.1.right/1792.-80.1920.1200/0.25.1792.1017@1792.-80.1920.1200" timestamp="1632313794436" />
   </component>
   <component name="XDebuggerManager">
@@ -1444,6 +1429,11 @@
           <url>file://$PROJECT_DIR$/evaluation/eval.py</url>
           <line>1296</line>
           <option name="timeStamp" value="116" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/evaluation/eval_chinese.py</url>
+          <line>479</line>
+          <option name="timeStamp" value="117" />
         </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>
