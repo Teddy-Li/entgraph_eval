@@ -203,8 +203,8 @@ class Graph:
                     node.add_sim(nNode,sim,feat_idx,order)
 
         f.close()
-        if debug:
-            print ("num edges in gr: ", Graph.num_edges, str(Graph.threshold), Graph.num_edges_threshold, gpath)
+
+        print ("num edges in gr: ", Graph.num_edges, str(Graph.threshold), Graph.num_edges_threshold, gpath)
 
         self.idxes = range(len(self.nodes))
 

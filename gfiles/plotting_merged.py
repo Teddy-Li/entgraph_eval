@@ -49,6 +49,11 @@ def main():
 		input_list.append(['./results/pr_rec_orig_dev_exhaust_22/global_scores_orig_dev_apooling_binc.txt', 'Zh_EG'])
 		input_list.append(['./results/pr_rec_merged_dev/scores_avg_0.30.txt', 'Ensemble AVG'])
 		input_list.append(['./results/pr_rec_merged_dev_plusplus/scores_avg_0.10.txt', 'Ensemble++ AVG'])
+	elif args.mode == 'clpen_dev':
+		input_list.append(['./results_en/pr_rec/global_scores_clp_enbert.txt', 'CLPEN_enBert local'])
+		input_list.append(['./results_en/pr_rec/global_scores_clp_mbert.txt', 'CLPEN_mBert local'])
+		input_list.append(['./results_en/pr_rec/global_scores.txt', 'TACL Global'])
+		input_list.append(['./results_Teddy/Aug_context_MC_dev_global.txt', 'CLP_reported global'])
 	elif args.mode == 'baselines_test':
 		input_list.append(['./results/pr_rec_orig_test/bert_sim_scores.txt', 'Bert'])
 		# input_list.append(['./results/pr_rec_orig_test_exhaust_jia_22/global_scores_orig_test_apooling_binc_JIA.txt', 'Jia'])
@@ -58,6 +63,11 @@ def main():
 		input_list.append(['./results/pr_rec_merged_test/scores_max_0.50.txt', 'Ensemble MAX'])
 		input_list.append(['./results_Teddy/Aug_context_MC_test_global.txt', '$EG_{En}$++'])
 		input_list.append(['./results/pr_rec_merged_test_plusplus/scores_avg_0.10.txt', 'Ensemble++ AVG'])
+	elif args.mode == 'clpen_test':
+		input_list.append(['./results_en/pr_rec/global_scores_clp_enbert_test.txt', 'CLPEN_enBert local'])
+		input_list.append(['./results_en/pr_rec/global_scores_clp_mbert_test.txt', 'CLPEN_mBert local'])
+		input_list.append(['./results_en/pr_rec/global_scores_test.txt', 'TACL Global'])
+		input_list.append(['./results_Teddy/Aug_context_MC_test_global.txt', 'CLP_reported global'])
 	elif args.mode == 'ablation_dataconcat_test':
 		input_list.append(['./results_en/pr_rec/global_scores_test_NW.txt', 'DataConcat En'])
 		input_list.append(['./results/pr_rec_orig_test_exhaust_WN_44/global_scores_orig_test_apooling_binc.txt', 'DataConcat Zh'])

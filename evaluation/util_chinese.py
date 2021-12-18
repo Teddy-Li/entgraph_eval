@@ -210,9 +210,10 @@ def get_subsample0(Y,Y_pred):
 def get_auc(precisions, recalls):
     xs = []
     ys = []
-    for i, p in enumerate(precisions):
+    assert len(precisions) == len(recalls)
+    for i, (p, r) in enumerate(zip(precisions, recalls)):
         if p >= .5:  # AUC above precision of 0.5
-            xs.append(recalls[i])
+            xs.append(r)
             ys.append(p)
 
     auc = metrics.auc(xs, ys)

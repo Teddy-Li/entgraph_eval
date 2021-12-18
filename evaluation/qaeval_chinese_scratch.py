@@ -1,0 +1,627 @@
+import json
+import sys
+import numpy as np
+from graph import graph
+from lemma_baseline import qa_utils_chinese
+import evaluation.util_chinese
+from lemma_baseline import chinese_baselines
+import os
+import argparse
+from qaeval_utils import DateManager, parse_rel, calc_simscore, duration_format_print
+from sklearn.metrics import precision_recall_curve
+import torch
+import transformers
+import psutil
+import copy
+import time
+import math
+
+
+def load_data_entries(fpath, posi_only=False):
+	data_entries = []
+	with open(fpath, 'r', encoding='utf8') as fp:
+		for line in fp:
+			item = json.loads(line)
+			item['label'] is not None and isinstance(item['label'], bool)
+			# if the posi_only flag is set to True, then don't load the negatives! (This is reserved for wh-question answering (objects))
+			if item['label'] is not True and posi_only:
+				continue
+			data_entries.append(item)
+	process = psutil.Process(os.getpid())
+	print(f"Current memory usage in bytes: {process.memory_info().rss}")  # in bytes
+	return data_entries
+
+
+def find_all_matches_in_string(string, pattern):
+	id_list = []
+	offset = 0
+	while True:
+		cur_id = string.find(pattern, offset)
+		if cur_id < 0:
+			break
+		id_list.append(cur_id)
+		offset = cur_id + len(pattern)
+	return id_list
+
+
+def fetch_span_by_rel(sent, rel, max_spansize):
+	if len(sent) <= max_spansize:
+		return sent
+
+	upred, subj, obj, tsubj, tobj = parse_rel(rel)
+	subj_ids = find_all_matches_in_string(sent, subj)
+	obj_ids = find_all_matches_in_string(sent, obj)
+
+	if len(subj_ids) == 0 or len(obj_ids) == 0:
+		return sent[:max_spansize]
+
+	selected_sid = None
+	selected_oid = None
+	min_dist = len(sent)
+
+	for sid in subj_ids:
+		for oid in obj_ids:
+			if abs(sid - oid) < min_dist:
+				selected_sid = sid
+				selected_oid = oid
+				min_dist = abs(sid - oid)
+	mid = int(selected_sid + selected_oid) // 2
+	if mid < max_spansize // 2:
+		return sent[:max_spansize]
+	if mid > len(sent) - (max_spansize // 2):
+		assert len(sent) - max_spansize > 0
+		return sent[len(sent) - max_spansize:]
+
+	assert mid - (max_spansize // 2) >= 0 and mid + (max_spansize // 2) <= len(sent)
+	return sent[(mid - (max_spansize // 2)):(mid + (max_spansize // 2))]
+
+
+def reconstruct_sent_from_rel(rel):
+	upred, subj, obj, tsubj, tobj = parse_rel(rel)
+	assert upred[0] == '(' and upred[-1] == ')'
+	upred_surface_form = upred[1:-1]
+	upred_surface_form = upred_surface_form.split('.1,')
+	assert len(upred_surface_form) == 2
+	upred_surface_form = upred_surface_form[0]
+	upred_xidxs = find_all_matches_in_string(upred_surface_form, '·X·')
+
+	if len(upred_xidxs) == 0:
+		upred_surface_form = upred_surface_form.replace('·', '')
+		reconstructed_sent = subj + upred_surface_form + obj
+	elif len(upred_xidxs) == 1:
+		upred_surface_form = upred_surface_form.replace('·X·', obj)
+		upred_surface_form = upred_surface_form.replace('·', '')
+		reconstructed_sent = subj + upred_surface_form  # we have stuck the object back into the predicate!
+	else:
+		raise AssertionError
+	return reconstructed_sent
+
+
+def type_matched(types_lst, tsubj, tobj):
+	assert len(types_lst) == 2
+	if types_lst[0][-2:] == '_1':
+		assert types_lst[1][-2:] == '_2'
+		types_lst[0] = types_lst[0][:-2]
+		types_lst[1] = types_lst[1][:-2]
+	if types_lst[0][-2:] == '_2':
+		assert types_lst[1][-2:] == '_1'
+		types_lst[0] = types_lst[0][:-2]
+		types_lst[1] = types_lst[1][:-2]
+
+	if tsubj[-2:] == '_1':
+		assert tobj[-2:] == '_2'
+		tsubj = tsubj[:-2]
+		tobj = tobj[:-2]
+	if tobj[-2:] == '_2':
+		assert tsubj[-2:] == '_1'
+		tsubj = tsubj[:-2]
+		tobj = tobj[:-2]
+
+	if tsubj == types_lst[0] and tobj == types_lst[1]:
+		return True
+	elif tsubj == types_lst[1] and tobj == types_lst[0]:
+		return True
+	else:
+		return False
+
+
+def calc_per_entry_score_bert(query_ent, ref_rels, ref_sents, method, max_spansize, bert_model, bert_tokenizer,
+							  bert_device, debug=False):
+	assert method in ['bert2', 'bert3']
+	# the data entry can be positive or negative, so that must be scenario 3; but the references here can be scenario 2
+	query_sent = reconstruct_sent_from_rel(query_ent)
+	query_toks = bert_tokenizer([query_sent], padding=True)
+	query_toks['input_ids'] = torch.tensor(query_toks['input_ids'])
+	query_toks['token_type_ids'] = torch.tensor(query_toks['token_type_ids'])
+	query_toks['attention_mask'] = torch.tensor(query_toks['attention_mask'])
+	query_toks['input_ids'].to(bert_device)
+	query_toks['token_type_ids'].to(bert_device)
+	query_toks['attention_mask'].to(bert_device)
+	query_outputs = bert_model(**query_toks)
+	query_vecs = query_outputs.last_hidden_state
+	assert query_vecs.shape[0] == 1
+	query_vecs = query_vecs[:, 0, :].detach().numpy()
+
+	ref_emb_inputstrs = []
+	ref_emb_outputvecs = []
+	assert len(ref_rels) == len(ref_sents)
+	for rrel, rsent in zip(ref_rels, ref_sents):
+		if method == 'bert2':
+			ref_emb_inputstrs.append(fetch_span_by_rel(rsent, rrel, max_spansize=max_spansize))
+		elif method == 'bert3':
+			ref_emb_inputstrs.append(reconstruct_sent_from_rel(rrel))
+		else:
+			raise AssertionError
+
+	ref_emb_chunks = []
+	chunk_size = 64
+	offset = 0
+	while offset < len(ref_emb_inputstrs):
+		ref_emb_chunks.append((offset, min(offset + chunk_size, len(ref_emb_inputstrs))))
+		offset += chunk_size
+	for chunk in ref_emb_chunks:
+		if chunk[1] == chunk[0]:  # do not attempt to send empty input into the model!
+			continue
+		ref_emb_inputtoks = bert_tokenizer(ref_emb_inputstrs[chunk[0]:chunk[1]], padding=True)
+		ref_emb_inputtoks['input_ids'] = torch.tensor(ref_emb_inputtoks['input_ids'])
+		ref_emb_inputtoks['token_type_ids'] = torch.tensor(ref_emb_inputtoks['token_type_ids'])
+		ref_emb_inputtoks['attention_mask'] = torch.tensor(ref_emb_inputtoks['attention_mask'])
+		ref_emb_inputtoks['input_ids'].to(bert_device)
+		ref_emb_inputtoks['token_type_ids'].to(bert_device)
+		ref_emb_inputtoks['attention_mask'].to(bert_device)
+		ref_encoder_outputs = bert_model(**ref_emb_inputtoks)
+		ref_encoder_outputs = ref_encoder_outputs.last_hidden_state
+		print(ref_encoder_outputs.shape)
+		ref_encoder_outputs = ref_encoder_outputs[:, 0, :].detach().numpy()
+		for bidx in range(ref_encoder_outputs.shape[0]):
+			ref_emb_outputvecs.append(ref_encoder_outputs[bidx, :])
+	assert len(ref_emb_outputvecs) == len(ref_emb_inputstrs)
+	ref_emb_outputvecs = np.array(ref_emb_outputvecs)
+	if len(ref_emb_inputstrs) > 0:
+		cur_sims = calc_simscore(query_vecs, ref_emb_outputvecs)
+		assert len(cur_sims.shape) == 2 and cur_sims.shape[0] == 1
+		print(f"cur sims shape: {cur_sims.shape}")
+		cur_max_sim = np.amax(cur_sims)
+		cur_argmax_sim = np.argmax(cur_sims)
+		if debug:
+			print(f"query rel: {query_ent['r']}")
+			print(f"best ref rel: {ref_rels[cur_argmax_sim]['r']}")
+	else:
+		cur_max_sim = 0.0
+		if debug:
+			print(f"No relevant relations found!")
+	return cur_max_sim
+
+
+def find_entailment_matches_from_graph(_graph, ent, ref_rels, typematch_flag, feat_idx, debug=False):
+	# find entailment matches for one entry from one graph
+	maximum_tscore = None
+	maximum_uscore = None
+	max_tscore_ref = None
+	max_uscore_ref = None
+	q_upred, q_subj, q_obj, q_tsubj, q_tobj = parse_rel(ent)
+	assert '_1' not in q_tsubj and '_2' not in q_tsubj and '_1' not in q_tobj and '_2' not in q_tobj
+	if q_tsubj == q_tobj:
+		q_tsubj = q_tsubj + '_1'
+		q_tobj = q_tobj + '_2'
+	q_tpred_querytype = '#'.join([q_upred, q_tsubj, q_tobj])
+	assert len(_graph.types) == 2
+	q_tpred_graphtype_fwd = '#'.join([q_upred, _graph.types[0], _graph.types[1]])
+	q_tpred_graphtype_rev = '#'.join([q_upred, _graph.types[1], _graph.types[0]])
+
+	for rrel in ref_rels:
+		r_upred, r_subj, r_obj, r_tsubj, r_tobj = parse_rel(rrel)
+		assert '_1' not in r_tsubj and '_2' not in r_tsubj and '_1' not in r_tobj and '_2' not in r_tobj
+		if r_tsubj == r_tobj:
+			assert q_tsubj[:-2] == q_tobj[:-2] and '_1' in q_tsubj and '_2' in q_tobj
+			if rrel['aligned'] is True:
+				r_tsubj = r_tsubj + '_1'
+				r_tobj = r_tobj + '_2'
+			elif rrel['aligned'] is False:
+				r_tsubj = r_tsubj + '_2'
+				r_tobj = r_tobj + '_1'
+			else:
+				raise AssertionError
+		else:
+			assert q_tsubj != q_tobj and '_1' not in q_tsubj and '_2' not in q_tsubj and '_1' not in q_tobj and '_2' not in q_tobj
+
+		if rrel['aligned'] is True:
+			r_tpred_querytype = '#'.join([r_upred, q_tsubj, q_tobj])
+			r_tpred_graphtype_fwd = '#'.join([r_upred, _graph.types[0], _graph.types[1]])
+			r_tpred_graphtype_rev = '#'.join([r_upred, _graph.types[1], _graph.types[0]])
+		elif rrel['aligned'] is False:
+			r_tpred_querytype = '#'.join([r_upred, q_tobj, q_tsubj])
+			r_tpred_graphtype_fwd = '#'.join([r_upred, _graph.types[1], _graph.types[0]])
+			r_tpred_graphtype_rev = '#'.join([r_upred, _graph.types[0], _graph.types[1]])
+		else:
+			raise AssertionError
+
+		print(f"Attention! Check this feat_idx matter!", file=sys.stderr)
+		effective_feat_idx = feat_idx + 0
+		if typematch_flag is True:
+			assert (q_tsubj == _graph.types[0] and q_tobj == _graph.types[1]) or \
+				   (q_tsubj == _graph.types[1] and q_tobj == _graph.types[0])
+
+			cur_tscores = _graph.get_features(r_tpred_querytype, q_tpred_querytype)
+			if cur_tscores is not None:
+				print(f"cur tscores length: {len(cur_tscores)}")
+				print(f"Attention! Check this feat_idx matter!", file=sys.stderr)
+				curfeat_cur_tscore = cur_tscores[effective_feat_idx]
+				if maximum_tscore is None or curfeat_cur_tscore > maximum_tscore:
+					max_tscore_ref = r_tpred_querytype
+					maximum_tscore = curfeat_cur_tscore
+
+		cur_uscores_fwd = _graph.get_features(r_tpred_graphtype_fwd, q_tpred_graphtype_fwd)
+		cur_uscores_rev = _graph.get_features(r_tpred_graphtype_rev, q_tpred_graphtype_rev)
+
+		if cur_uscores_fwd is not None:
+			curfeat_cur_uscore_fwd = cur_uscores_fwd[effective_feat_idx]
+			if maximum_uscore is None or curfeat_cur_uscore_fwd > maximum_uscore:
+				max_uscore_ref = r_tpred_graphtype_fwd
+				maximum_uscore = curfeat_cur_uscore_fwd
+		if cur_uscores_rev is not None:
+			curfeat_cur_uscore_rev = cur_uscores_rev[effective_feat_idx]
+			if maximum_uscore is None or curfeat_cur_uscore_rev > maximum_uscore:
+				max_uscore_ref = r_tpred_graphtype_rev
+				maximum_uscore = curfeat_cur_uscore_rev
+
+	if debug:
+		print(f"query: {q_tpred_querytype}")
+		print(f"max_tscore_ref: {max_tscore_ref}")
+		print(f"max_uscore_ref: {max_uscore_ref}")
+
+	return maximum_tscore, maximum_uscore
+
+
+def qa_eval_boolean_all_partitions(args, date_slices, data_entries, entry_processed_flags, entry_tscores,
+								   entry_uscores=None, gr=None):
+	if args.eval_method in ['bert1', 'bert2', 'bert3']:
+		bert_tokenizer = transformers.BertTokenizer.from_pretrained('bert-base-chinese')
+		bert_model = transformers.BertModel.from_pretrained('bert-base-chinese')
+		bert_model.eval()
+		args.device = torch.device(args.device_name) if torch.cuda.is_available() else torch.device('cpu')
+		bert_model = bert_model.to(args.device)
+	elif args.eval_method in ['eg']:
+		bert_tokenizer = None
+		bert_model = None
+		assert gr is not None
+	else:
+		raise AssertionError
+
+	dur_loadtriples = 0.0
+	this_total_num_matches = 0
+
+	for partition_key in date_slices:
+
+		if partition_key != '03-25_03-27':
+			print(f"Processing only partition ``03-25_03-27'', skipping current partition!")
+			continue
+
+		print(f"Processing partition {partition_key}! Loading time so far: {dur_loadtriples} seconds")
+		partition_triple_path = os.path.join(args.sliced_triples_dir,
+											 args.sliced_triples_base_fn % (args.slicing_method, partition_key))
+		partition_triples_in_sents = []
+
+		st_loadtriples = time.time()
+		with open(partition_triple_path, 'r', encoding='utf8') as fp:
+			for line in fp:
+				item = json.loads(line)
+				partition_triples_in_sents.append(item)
+		et_loadtriples = time.time()
+		dur_loadtriples += (et_loadtriples - st_loadtriples)
+
+		# build up the current-partition-dataset
+		cur_partition_data_entries = []
+		cur_partition_data_refs = []
+		cur_partition_global_dids = []
+		cur_partition_typematched_flags = []
+		for iid, item in enumerate(data_entries):
+			upred, subj, obj, tsubj, tobj = parse_rel(item)
+			tm_flag = None
+			if gr is not None and not type_matched(gr.types, tsubj, tobj):
+				tm_flag = False
+			else:
+				tm_flag = True
+				this_total_num_matches += 1
+
+			if item['partition_key'] == partition_key:
+				cur_partition_data_entries.append(item)
+				cur_partition_data_refs.append([])
+				cur_partition_global_dids.append(iid)
+				cur_partition_typematched_flags.append(tm_flag)
+
+		# build up entity-pair dict
+		ep_to_cur_partition_dids = {}
+		for cid, ent in enumerate(cur_partition_data_entries):
+			upred, subj, obj, tsubj, tobj = parse_rel(ent)
+			ep_fwd = '::'.join([subj, obj])
+			ep_rev = '::'.join([obj, subj])
+			if ep_fwd not in ep_to_cur_partition_dids:
+				ep_to_cur_partition_dids[ep_fwd] = []
+			ep_to_cur_partition_dids[ep_fwd].append((cid, True))
+			if ep_rev not in ep_to_cur_partition_dids:
+				ep_to_cur_partition_dids[ep_rev] = []
+			ep_to_cur_partition_dids[ep_rev].append((cid, False))
+
+		# sort out the related sent and rel ids for each entity pair
+		for sidx, sent_item in enumerate(partition_triples_in_sents):
+			if args.debug and sidx > 100000:
+				break
+			for ridx, r in enumerate(sent_item['rels']):
+				rupred, rsubj, robj, rtsubj, rtobj = parse_rel(r)
+				r_ep = '::'.join([rsubj,
+								  robj])  # reference entity pair may be in the same order or reversed order w.r.t. the queried entity pair.
+				if r_ep in ep_to_cur_partition_dids:
+					for (cur_partition_did, aligned) in ep_to_cur_partition_dids[r_ep]:
+						assert isinstance(aligned, bool)
+						cur_partition_data_refs[cur_partition_did].append((sidx, ridx, aligned))
+
+		st_calcscore = time.time()
+		# calculate the confidence value for each entry
+		for cid, ent in enumerate(cur_partition_data_entries):
+			if cid % 100 == 1:
+				ct_calcscore = time.time()
+				dur_calcscore = ct_calcscore - st_calcscore
+				print(f"calculating score for data entry {cid} / {len(cur_partition_data_entries)} for current partition;")
+				duration_format_print(dur_calcscore, '')
+
+			cur_score = None
+			if args.eval_method == 'bert1':
+				print(f"Bert 1 method requires TF-IDF retrieval, and should have been instantiated elsewhere!")
+				raise AssertionError
+			elif args.eval_method in ['bert2', 'bert3']:
+				ref_rels = []
+				ref_sents = []
+				# for Bert methods, ``aligned'' var is not used: whether or not the entity pairs are aligned is unimportant for Bert.
+				for (sid, rid, aligned) in cur_partition_data_refs[cid]:
+					ref_sents.append(partition_triples_in_sents[sid]['s'])
+					ref_rels.append(partition_triples_in_sents[sid]['rels'][rid])
+				cur_score = calc_per_entry_score_bert(ent, ref_rels=ref_rels, ref_sents=ref_sents,
+													  method=args.eval_method,
+													  max_spansize=args.max_spansize, bert_model=bert_model,
+													  bert_tokenizer=bert_tokenizer, bert_device=args.device,
+													  debug=args.debug)
+				assert cur_partition_typematched_flags[cid] is True
+				cur_uscore = None
+			elif args.eval_method in ['eg']:
+				ref_rels = []
+				for (sid, rid, aligned) in cur_partition_data_refs[cid]:
+					this_rel = partition_triples_in_sents[sid]['rels'][rid]
+					this_rel['aligned'] = aligned
+					ref_rels.append(this_rel)
+				cur_score, cur_uscore = find_entailment_matches_from_graph(gr, ent, ref_rels,
+																		   cur_partition_typematched_flags[cid],
+																		   feat_idx=args.eg_feat_idx, debug=args.debug)
+			else:
+				raise AssertionError
+
+			# The condition below means, either the current eval_method is some Bert method, or the current entry matches
+			# the type of the current graph
+			if cur_partition_typematched_flags[cid] is True:
+				assert entry_tscores[cur_partition_global_dids[cid]] is None
+				assert entry_processed_flags[cur_partition_global_dids[cid]] is False
+				if cur_score is None:
+					cur_score = 0.0
+				entry_tscores[cur_partition_global_dids[cid]] = cur_score
+			else:
+				assert cur_score is None
+
+			# The condition below means, the eval_method is EG, and some non-zero entailment score has been found between
+			# the query rel and some reference rel in this type pair. (the uscore means this is ignoring type, we'll average them later)
+			# TODO: double check whether backupAvg indeed means backup to the average of all type pairs where some non-zero
+			# TODO: entailment score has been found.
+			# ⬆️ it is indeed: the predPairFeats were the sum of all entailment scores where some entailment score other
+			# than ``None'' was returned; later on it is divided by the value in predPairSumCoefs, which is the number of
+			# such entailment scores as described above.
+			# TODO: NOTE! The ``other than None'' includes that cases where all-zeros are returned. These cases mean that
+			# TODO: both predicates are found in the graph, but no edges connect between them. The meaning of this is that,
+			# TODO: this sub-graph does not think there exists an edge between this pair of predicates, that opinion matters,
+			# TODO: so this zero-score should be counted in the denominator, and should not be ignored.
+			if cur_uscore is not None and ((not args.ignore_0_for_Avg) or cur_uscore > 0.0000000001):  # a small number, not zero for numerical stability
+				entry_uscores[cur_partition_global_dids[cid]].append(cur_uscore)
+			entry_processed_flags[cur_partition_global_dids[cid]] = True
+	return dur_loadtriples, this_total_num_matches
+
+
+def qa_eval_boolean_main(args, date_slices):
+	data_entries = load_data_entries(args.fpath, posi_only=False)
+
+	entry_processed_flags = [False for x in range(len(data_entries))]
+	entry_tscores = [None for x in range(len(data_entries))]
+	entry_uscores = [[] for x in range(len(data_entries))]
+
+	all_tps = []
+
+	total_dur_loadtriples = 0.0
+
+	# There are two loops: one for all entailment sub-graphs, the other for all partitions.
+	# Both are too large to store all in memory at once, and entGraphs take longer to load.
+	# So in the outer loop, iterate over all type-pairs; for each type pair, retrieve results from the corresponding subgraphs
+
+	if args.eval_method == 'eg':
+		files = os.listdir(args.eg_dir)
+		files.sort()
+		num_type_pairs_processed = 0
+		for f in files:
+			if num_type_pairs_processed % 50 == 1:
+				print(f"num processed type pairs: {num_type_pairs_processed}")
+			if not f.endswith(args.eg_suff):
+				continue
+			gpath = os.path.join(args.eg_dir, f)
+			gr = graph.Graph(gpath=gpath, args=args)
+			gr.set_Ws()
+			all_tps.append(gr.types)
+
+			cur_dur_loadtriples, this_num_matches = qa_eval_boolean_all_partitions(args, date_slices, data_entries, entry_processed_flags, entry_tscores,
+										   entry_uscores=entry_uscores, gr=gr)
+			total_dur_loadtriples += cur_dur_loadtriples
+			num_type_pairs_processed += 1
+			this_percent_matches = '%.2f' % (100 * this_num_matches / len(data_entries))
+			print(f"Finished processing for graph of types: {gr.types[0]}#{gr.types[1]}; num of entries matched: {this_num_matches} -> {this_percent_matches} percents of all entries.")
+		raise NotImplementedError
+	elif args.eval_method == 'bert1':
+		# TODO: build TF-IDF algorithm (maybe re-use part of DrQA), retrieve the documents, then use similar codes as ``calc_per_entry_score_bert'' above.
+		raise NotImplementedError
+	elif args.eval_method in ['bert2', 'bert3']:
+		total_dur_loadtriples, _ = qa_eval_boolean_all_partitions(args, date_slices, data_entries, entry_processed_flags, entry_tscores,
+									   entry_uscores=None, gr=None)
+	else:
+		raise AssertionError
+
+	duration_format_print(total_dur_loadtriples, f"Total duration for loading triples")
+
+	assert len(entry_processed_flags) == len(entry_tscores)
+	unmatched_types = set()
+
+	for eidx, (fl, sc) in enumerate(zip(entry_processed_flags, entry_tscores)):
+		if args.eval_method in ['eg']:
+			entry_rel = data_entries[eidx]
+			upred, subj, obj, tsubj, tobj = parse_rel(entry_rel)
+			matched_flag = False
+			for tp in all_tps:
+				if type_matched(tp, tsubj, tobj):
+					matched_flag = True
+			if matched_flag is False:
+				if ('::'.join([tsubj, tobj]) not in unmatched_types) and (
+						'::'.join([tobj, tsubj]) not in unmatched_types):
+					unmatched_types.add('::'.join([tsubj, tobj]))
+				continue
+
+		assert fl is True
+		assert sc is not None
+
+	if args.eval_method in ['eg']:
+		print('unmatched types: ')
+		print(unmatched_types)
+
+	entry_avg_uscores = []
+	for eidx, cur_uscores in enumerate(entry_uscores):
+		avg_uscr = sum(cur_uscores) / float(len(cur_uscores)) if len(cur_uscores) > 0 else 0.0
+		entry_avg_uscores.append(avg_uscr)
+	assert len(entry_tscores) == len(entry_avg_uscores)
+
+	# if args.store_skip_idxes:
+	# 	with open(args.skip_idxes_fn, 'w', encoding='utf8') as fp:
+	# 		skip_idxes = []
+	# 		for eidx, flg in enumerate(entry_processed_flags):
+	# 			if not flg:
+	# 				skip_idxes.append(eidx)
+	# 		json.dump(skip_idxes, fp, ensure_ascii=False)
+	# else:
+	# 	with open(args.skip_idxes_fn, 'r', encoding='utf8') as fp:
+	# 		skip_idxes = json.load(fp)
+	# 	for si in skip_idxes:
+	# 		assert si < len(data_entries)
+	# 	for eidx, flg in enumerate(entry_processed_flags):
+	# 		assert eidx in skip_idxes or flg
+
+	# TODO: this ``skipping those data entries whose type-pairs unmatched by any sub-graph'' thing, it should not be
+	# TODO: necessary with backupAvg, and should not be reasonable without backupAvg. It kind of biases the evaluation.
+	# TODO: remove this.
+	final_scores = []  # this is typed score if not backupAvg, and back-up-ed score if backupAvg
+	final_labels = []
+	for eidx, (tscr, uscr, ent) in enumerate(zip(entry_tscores, entry_avg_uscores, data_entries)):
+
+		if tscr is not None and tscr > 0:
+			final_scores.append(tscr)
+		elif args.backupAvg and uscr is not None and uscr > 0:
+			final_scores.append(uscr)
+		else:
+			final_scores.append(0.)
+		if bool(ent['label']) is True:
+			final_labels.append(1)
+		elif bool(ent['label']) is False:
+			final_labels.append(0)
+		else:
+			raise AssertionError
+	assert len(final_labels) == len(final_scores)
+
+	prec, rec, thres = precision_recall_curve(final_labels, final_scores)
+	assert len(prec) == len(rec) and len(prec) == len(thres) + 1
+	auc_value = evaluation.util_chinese.get_auc(prec[1:], rec[1:])
+	print(f"Area under curve: {auc_value};")
+
+	if args.eval_method in ['bert1', 'bert2', 'bert3']:
+		method_ident_str = args.eval_method
+	elif args.eval_method in ['eg']:
+		method_ident_str = '_'.join([args.eval_method, args.eg_name])
+	else:
+		raise AssertionError
+	with open(args.predictions_path % method_ident_str, 'w', encoding='utf8') as fp:
+		for s, l in zip(final_scores, final_labels):
+			fp.write(f"{s}\t{l}\n")
+
+	with open(args.pr_rec_path % method_ident_str, 'w', encoding='utf8') as fp:
+		fp.write(f"auc: {auc_value}\n")
+		for p, r, t in zip(prec[1:], rec[1:], thres):
+			fp.write(f"{p}\t{r}\t{t}\n")
+
+	print(f"Finished!")
+
+
+if __name__ == '__main__':
+	parser = argparse.ArgumentParser()
+	parser.add_argument('--eval_set', type=str, default='dev')
+	parser.add_argument('--version', type=str, default='15_30_triple_doc_disjoint_1400000_2_lexic_wordnet')
+	parser.add_argument('--fpath_base', type=str,
+						default='../../QAEval/clue_final_samples_%s_%s.json')
+	parser.add_argument('--sliced_triples_dir', type=str,
+						default='../../QAEval/clue_time_slices/')
+	parser.add_argument('--slicing_method', type=str, default='disjoint')
+	parser.add_argument('--time_interval', type=int, default=3)
+	parser.add_argument('--sliced_triples_base_fn', type=str, default='clue_typed_triples_%s_%s.json')
+	parser.add_argument('--eval_mode', type=str, default='boolean', help='[boolean / wh-questions]')
+	parser.add_argument('--eval_method', type=str, required=True)
+	parser.add_argument('--eg_root', type=str, default='../gfiles', help='root directory to entailment graphs.')
+	parser.add_argument('--eg_name', type=str, default='typedEntGrDir_Chinese2_2_V3',
+						help='name of the desired entailment graph')
+	parser.add_argument('--eg_suff', type=str, default='_sim.txt',
+						help='suffix corresponding to the EG files of interest.')
+	parser.add_argument('--eg_feat_idx', type=int, required=True,
+						help='feature index, local graph: {cos: 0, weeds: 1, etc.}, global graph: {init: 0, globalized: 1}')
+	parser.add_argument('--max_spansize', type=int, default=300, help='maximum span size for Bert inputs.')
+	# parser.add_argument('--store_skip_idxes', action='store_true')
+	# parser.add_argument('--skip_idxes_fn', type=str, default='./skip_idxes_%s_%s.json')
+	parser.add_argument('--result_dir', type=str, default='../gfiles/qaeval_results/%s_%s/')
+	parser.add_argument('--pr_rec_fn', type=str, default='%s_prt_vals.tsv')
+	parser.add_argument('--predictions_fn', type=str, default='%s_predictions.txt')
+	parser.add_argument('--debug', action='store_true')
+	parser.add_argument('--backupAvg', action='store_true')
+	parser.add_argument('--ignore_0_for_Avg', action='store_true',
+						help='whether or not to ignore the zero entailment scores for averages, or to take them in in the denominator.')
+	parser.add_argument('--device_name', type=str, default='cpu')
+
+	# flags below are put here for the graph initializer, but generally they should not be changed.
+	parser.add_argument('--saveMemory', action='store_true')
+	parser.add_argument('--threshold', type=int, default=None)
+	parser.add_argument('--maxRank', type=int, default=None)
+
+	args = parser.parse_args()
+	args.CCG = True
+	assert args.eval_set in ['dev', 'test']
+	assert args.slicing_method in ['disjoint', 'sliding']
+	assert args.eval_mode in ['boolean', 'wh']
+	assert args.eval_method in ['bert1', 'bert2', 'bert3', 'EG']
+
+	args.fpath = args.fpath_base % (args.version, args.eval_set)
+	args.eg_dir = os.path.join(args.eg_root, args.eg_name)
+	# args.skip_idxes_fn = args.skip_idxes_fn % (args.version, args.eval_set)
+	args.result_dir = args.result_dir % (args.version, args.eval_set)
+	if not os.path.exists(args.result_dir):
+		os.mkdir(args.result_dir)
+	args.pr_rec_path = os.path.join(args.result_dir, args.pr_rec_fn)
+	args.predictions_path = os.path.join(args.result_dir, args.predictions_fn)
+	datemngr = DateManager()
+	if args.slicing_method == 'disjoint':
+		date_slices, _ = datemngr.setup_dateslices(args.time_interval)
+	elif args.slicing_method == 'sliding':
+		date_slices, _ = datemngr.setup_dates(args.time_interval)
+	else:
+		raise AssertionError
+
+	if args.eval_mode in ['wh']:
+		raise NotImplementedError
+	elif args.eval_mode in ['boolean']:
+		qa_eval_boolean_main(args, date_slices)
+
+	print(f"Finished.")

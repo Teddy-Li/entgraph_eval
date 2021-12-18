@@ -80,5 +80,8 @@ def opts(actual_args=None):
 
     boolflag("LDA", "full distributional LDA probabilities for types")  # deprecated
 
+    flag("qaeval_version", "qaeval_version", ftype=str, default='15_30_triple_doc_disjoint_1400000_2_lexic_wordnet')
+
+
     args = opts.parse_args(actual_args)
     return args

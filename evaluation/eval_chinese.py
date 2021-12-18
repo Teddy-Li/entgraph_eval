@@ -227,7 +227,7 @@ def form_samples_gr(gr, data, data_unary, predCounts, predPairCounts, predPairSu
                 q1s = [qq + "#" + this_types[1] + "#" + this_types[0] for qq in qs]
 
             added = add_feats_for_predPair(gr,p,q,a,t1,t2,p1,q1,p1s,q1s,predPairCounts,None, None, predPairFeatsTyped,predPairTypedExactFound,True)
-            if added and debug:
+            if added:
                 print("added typed: ", p1, " ", q1," ", a, " ", types)
 
     ts = types  # This is to find the order of types (if any) that matches the graph!
@@ -438,8 +438,9 @@ def form_samples(fnames,fnames_unary,orig_fnames,engG_dir_addr,fname_feats=None,
         f_feats.write("predPairTypedExactFound:\n")
         for x in predPairTypedExactFound:
             f_feats.write(x + '\n')
-        if debug:
-            print("predPairExactFound: ", predPairTypedExactFound)
+
+        print(f"len of predPairExactFound: {len(predPairTypedExactFound)}")
+        print("predPairExactFound: ", predPairTypedExactFound)
 
         # Writing unary features
         f_feats_unary = open('feats/feats_' + args.method + '_unary.txt', 'w', encoding='utf8')
@@ -776,6 +777,7 @@ def final_prediction(data_dev, data_dev_CCG, predPairFeats, predPairFeatsTyped, 
     #Now do the final prediction!
     assert args.no_lemma_baseline
     assert args.no_constraints
+    count_nonzero_edges_found_in_entgraph = 0
     for (idx, _) in enumerate(data_dev):
         (p_ccg,q_ccg,_,_,_,a_ccg,_) = data_dev_CCG[idx]
         if Y_dev_exact[idx]:
@@ -784,6 +786,8 @@ def final_prediction(data_dev, data_dev_CCG, predPairFeats, predPairFeatsTyped, 
             pred = True
         elif Y_dev_pred0:  # means: the entailment graph based prediction score array exist! -- Teddy
             pred = Y_dev_pred0[idx]
+            if pred < 0.999:
+                count_nonzero_edges_found_in_entgraph += 1
         else:
             pred = False
         Y_dev_pred.append(pred)
@@ -797,6 +801,7 @@ def final_prediction(data_dev, data_dev_CCG, predPairFeats, predPairFeatsTyped, 
                 Y_dev_pred_seen.append(pred)
                 Y_dev_seen.append(Y_dev[idx])
 
+    print(f"count_nonzero_edges_found_in_entgraph: {count_nonzero_edges_found_in_entgraph}", file=sys.stderr)
     for (i,y) in enumerate(Y_dev_pred):
         if debug:
             print(lines_dev[i])
@@ -1118,7 +1123,7 @@ if args.dev:
         args.untyped_mapping_fn = root + 'dev_ent_chinese/dev_exhaust_fineonly_rellevy_mapping.txt'
     else:
         raise AssertionError
-if args.test:
+elif args.test:
     if args.eval_range == 'full':
         fnames_CCG = [None, root + "chinese_ent/implications_test_rels.txt"]
         fnames_oie = [None, None]

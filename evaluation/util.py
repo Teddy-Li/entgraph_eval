@@ -262,7 +262,7 @@ def get_auc(precisions, recalls):
             xs.append(recalls[i])
             ys.append(p)
 
-    auc = metrics.auc(xs, ys, reorder=True)
+    auc = metrics.auc(xs, ys)
     return auc
 
 def get_confidence_interval(Y,Y_pred):

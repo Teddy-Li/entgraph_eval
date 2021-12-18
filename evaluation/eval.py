@@ -1047,7 +1047,8 @@ def final_prediction(data_dev, data_dev_CCG, predPairFeats, predPairFeatsTyped, 
     (precision, recall, thresholds) = precision_recall_curve(Y_dev, Y_dev_pred)
     try:
         main_auc = evaluation.util.get_auc(precision[:-1], recall[:-1])
-    except:
+    except Exception as e:
+        print(e)
         main_auc = 0
 
     if args.write:
@@ -1291,10 +1292,10 @@ if args.dev:
             fnames_oie = [root + "ent/all_rels_oie.txt", root + "ent/dev_rels_oie.txt"]
             orig_fnames = [root + "ent/all_comb.txt", root + "ent/dev.txt"]
 
-if args.dev_bt:
-    fnames_CCG = [root + "ent/all_comb_rels.txt", root + "ent/dev_backtranslated_rels.txt"]
-    fnames_oie = [root + "ent/all_rels_oie.txt", root + "ent/dev_rels_oie.txt"]
-    orig_fnames = [root + "ent/all_comb.txt", root + "ent/dev_backtranslated.tsv"]
+# elif args.dev_bt:
+#     fnames_CCG = [root + "ent/all_comb_rels.txt", root + "ent/dev_backtranslated_rels.txt"]
+#     fnames_oie = [root + "ent/all_rels_oie.txt", root + "ent/dev_rels_oie.txt"]
+#     orig_fnames = [root + "ent/all_comb.txt", root + "ent/dev_backtranslated.tsv"]
 
 elif args.dev_v2:
     fnames_CCG = [root + "ent/all_comb_rels_v2.txt", root + "ent/dev_rels_v2.txt"]
