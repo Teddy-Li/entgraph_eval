@@ -167,6 +167,13 @@ def main():
 		input_list.append(['./results/pr_rec_merged_test/scores_max_%s.txt' % factor_list[2], 'MAX'])
 		input_list.append(['./results/pr_rec_merged_test/scores_avg_%s.txt' % factor_list[3], 'AVG'])
 		input_list.append(['./results/pr_rec_merged_test/scores_min_%s.txt' % factor_list[4], 'MIN'])
+	elif args.mode == 'dev_qaeval':
+		input_list.append(['./qaeval_results/15_30_triple_doc_disjoint_40000_2_lexic_wordnet_dev/bert2_prt_vals.tsv', 'Bert 2'])
+		input_list.append(['./qaeval_results/15_30_triple_doc_disjoint_40000_2_lexic_wordnet_dev/bert3_prt_vals.tsv', 'Bert 3'])
+		input_list.append(['./qaeval_results/15_30_triple_doc_disjoint_40000_2_lexic_wordnet_dev/eg_typedEntGrDir_Chinese2_2_prt_vals.tsv', 'EG binc_2'])
+	elif args.mode == 'test_qaeval':
+		input_list.append(['./qaeval_results/15_30_triple_doc_disjoint_40000_2_lexic_wordnet_test/bert2_prt_vals.tsv', 'Bert 2'])
+		input_list.append(['./qaeval_results/15_30_triple_doc_disjoint_40000_2_lexic_wordnet_test/bert3_prt_vals.tsv', 'Bert 3'])
 	else:
 		raise AssertionError
 

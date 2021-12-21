@@ -1,5 +1,6 @@
 import json
 import sys
+sys.path.append("..")
 import numpy as np
 from graph import graph
 from lemma_baseline import qa_utils_chinese
@@ -22,7 +23,7 @@ def load_data_entries(fpath, posi_only=False):
 	with open(fpath, 'r', encoding='utf8') as fp:
 		for line in fp:
 			item = json.loads(line)
-			item['label'] is not None and isinstance(item['label'], bool)
+			assert item['label'] is not None and isinstance(item['label'], bool)
 			# if the posi_only flag is set to True, then don't load the negatives! (This is reserved for wh-question answering (objects))
 			if item['label'] is not True and posi_only:
 				continue
@@ -76,7 +77,7 @@ def fetch_span_by_rel(sent, rel, max_spansize):
 	return sent[(mid - (max_spansize // 2)):(mid + (max_spansize // 2))]
 
 
-def reconstruct_sent_from_rel(rel):
+def reconstruct_sent_from_rel(rel, max_spansize):
 	upred, subj, obj, tsubj, tobj = parse_rel(rel)
 	assert upred[0] == '(' and upred[-1] == ')'
 	upred_surface_form = upred[1:-1]
@@ -94,10 +95,13 @@ def reconstruct_sent_from_rel(rel):
 		reconstructed_sent = subj + upred_surface_form  # we have stuck the object back into the predicate!
 	else:
 		raise AssertionError
+	if len(reconstructed_sent) > max_spansize:
+		reconstructed_sent = reconstructed_sent[:max_spansize]
 	return reconstructed_sent
 
 
-def type_matched(types_lst, tsubj, tobj):
+def type_matched(types_lst_pointer, tsubj, tobj):
+	types_lst = copy.deepcopy(types_lst_pointer)
 	assert len(types_lst) == 2
 	if types_lst[0][-2:] == '_1':
 		assert types_lst[1][-2:] == '_2'
@@ -112,8 +116,8 @@ def type_matched(types_lst, tsubj, tobj):
 		assert tobj[-2:] == '_2'
 		tsubj = tsubj[:-2]
 		tobj = tobj[:-2]
-	if tobj[-2:] == '_2':
-		assert tsubj[-2:] == '_1'
+	if tsubj[-2:] == '_2':
+		assert tobj[-2:] == '_1'
 		tsubj = tsubj[:-2]
 		tobj = tobj[:-2]
 
@@ -129,18 +133,14 @@ def calc_per_entry_score_bert(query_ent, ref_rels, ref_sents, method, max_spansi
 							  bert_device, debug=False):
 	assert method in ['bert2', 'bert3']
 	# the data entry can be positive or negative, so that must be scenario 3; but the references here can be scenario 2
-	query_sent = reconstruct_sent_from_rel(query_ent)
+	query_sent = reconstruct_sent_from_rel(query_ent, max_spansize)
 	query_toks = bert_tokenizer([query_sent], padding=True)
-	query_toks['input_ids'] = torch.tensor(query_toks['input_ids'])
-	query_toks['token_type_ids'] = torch.tensor(query_toks['token_type_ids'])
-	query_toks['attention_mask'] = torch.tensor(query_toks['attention_mask'])
-	query_toks['input_ids'].to(bert_device)
-	query_toks['token_type_ids'].to(bert_device)
-	query_toks['attention_mask'].to(bert_device)
+	query_toks = query_toks.convert_to_tensors('pt')
+	query_toks = query_toks.to(bert_device)
 	query_outputs = bert_model(**query_toks)
 	query_vecs = query_outputs.last_hidden_state
 	assert query_vecs.shape[0] == 1
-	query_vecs = query_vecs[:, 0, :].detach().numpy()
+	query_vecs = query_vecs[:, 0, :].cpu().detach().numpy()
 
 	ref_emb_inputstrs = []
 	ref_emb_outputvecs = []
@@ -149,12 +149,12 @@ def calc_per_entry_score_bert(query_ent, ref_rels, ref_sents, method, max_spansi
 		if method == 'bert2':
 			ref_emb_inputstrs.append(fetch_span_by_rel(rsent, rrel, max_spansize=max_spansize))
 		elif method == 'bert3':
-			ref_emb_inputstrs.append(reconstruct_sent_from_rel(rrel))
+			ref_emb_inputstrs.append(reconstruct_sent_from_rel(rrel, max_spansize))
 		else:
 			raise AssertionError
 
 	ref_emb_chunks = []
-	chunk_size = 64
+	chunk_size = 32
 	offset = 0
 	while offset < len(ref_emb_inputstrs):
 		ref_emb_chunks.append((offset, min(offset + chunk_size, len(ref_emb_inputstrs))))
@@ -163,16 +163,13 @@ def calc_per_entry_score_bert(query_ent, ref_rels, ref_sents, method, max_spansi
 		if chunk[1] == chunk[0]:  # do not attempt to send empty input into the model!
 			continue
 		ref_emb_inputtoks = bert_tokenizer(ref_emb_inputstrs[chunk[0]:chunk[1]], padding=True)
-		ref_emb_inputtoks['input_ids'] = torch.tensor(ref_emb_inputtoks['input_ids'])
-		ref_emb_inputtoks['token_type_ids'] = torch.tensor(ref_emb_inputtoks['token_type_ids'])
-		ref_emb_inputtoks['attention_mask'] = torch.tensor(ref_emb_inputtoks['attention_mask'])
-		ref_emb_inputtoks['input_ids'].to(bert_device)
-		ref_emb_inputtoks['token_type_ids'].to(bert_device)
-		ref_emb_inputtoks['attention_mask'].to(bert_device)
+		ref_emb_inputtoks = ref_emb_inputtoks.convert_to_tensors('pt')
+		ref_emb_inputtoks = ref_emb_inputtoks.to(bert_device)
 		ref_encoder_outputs = bert_model(**ref_emb_inputtoks)
 		ref_encoder_outputs = ref_encoder_outputs.last_hidden_state
-		print(ref_encoder_outputs.shape)
-		ref_encoder_outputs = ref_encoder_outputs[:, 0, :].detach().numpy()
+		if debug:
+			print(ref_encoder_outputs.shape)
+		ref_encoder_outputs = ref_encoder_outputs[:, 0, :].cpu().detach().numpy()
 		for bidx in range(ref_encoder_outputs.shape[0]):
 			ref_emb_outputvecs.append(ref_encoder_outputs[bidx, :])
 	assert len(ref_emb_outputvecs) == len(ref_emb_inputstrs)
@@ -180,10 +177,10 @@ def calc_per_entry_score_bert(query_ent, ref_rels, ref_sents, method, max_spansi
 	if len(ref_emb_inputstrs) > 0:
 		cur_sims = calc_simscore(query_vecs, ref_emb_outputvecs)
 		assert len(cur_sims.shape) == 2 and cur_sims.shape[0] == 1
-		print(f"cur sims shape: {cur_sims.shape}")
 		cur_max_sim = np.amax(cur_sims)
 		cur_argmax_sim = np.argmax(cur_sims)
 		if debug:
+			print(f"cur sims shape: {cur_sims.shape}")
 			print(f"query rel: {query_ent['r']}")
 			print(f"best ref rel: {ref_rels[cur_argmax_sim]['r']}")
 	else:
@@ -209,11 +206,15 @@ def find_entailment_matches_from_graph(_graph, ent, ref_rels, typematch_flag, fe
 	q_tpred_graphtype_fwd = '#'.join([q_upred, _graph.types[0], _graph.types[1]])
 	q_tpred_graphtype_rev = '#'.join([q_upred, _graph.types[1], _graph.types[0]])
 
+	num_true_entailments = 0.0
+
 	for rrel in ref_rels:
 		r_upred, r_subj, r_obj, r_tsubj, r_tobj = parse_rel(rrel)
 		assert '_1' not in r_tsubj and '_2' not in r_tsubj and '_1' not in r_tobj and '_2' not in r_tobj
 		if r_tsubj == r_tobj:
-			assert q_tsubj[:-2] == q_tobj[:-2] and '_1' in q_tsubj and '_2' in q_tobj
+			# the assertion below seems deprecated, the ref argument types are allowed to be different from the query
+			# argument types, but in these cases the ref argument types would be ignored.
+			# assert q_tsubj[:-2] == q_tobj[:-2] and '_1' in q_tsubj and '_2' in q_tobj
 			if rrel['aligned'] is True:
 				r_tsubj = r_tsubj + '_1'
 				r_tobj = r_tobj + '_2'
@@ -223,7 +224,8 @@ def find_entailment_matches_from_graph(_graph, ent, ref_rels, typematch_flag, fe
 			else:
 				raise AssertionError
 		else:
-			assert q_tsubj != q_tobj and '_1' not in q_tsubj and '_2' not in q_tsubj and '_1' not in q_tobj and '_2' not in q_tobj
+			# assert q_tsubj != q_tobj and '_1' not in q_tsubj and '_2' not in q_tsubj and '_1' not in q_tobj and '_2' not in q_tobj
+			pass
 
 		if rrel['aligned'] is True:
 			r_tpred_querytype = '#'.join([r_upred, q_tsubj, q_tobj])
@@ -236,7 +238,8 @@ def find_entailment_matches_from_graph(_graph, ent, ref_rels, typematch_flag, fe
 		else:
 			raise AssertionError
 
-		print(f"Attention! Check this feat_idx matter!", file=sys.stderr)
+		# print(f"Attention! Check this feat_idx matter!", file=sys.stderr)
+		# TODO: Attention! Check this feat_idx matter!
 		effective_feat_idx = feat_idx + 0
 		if typematch_flag is True:
 			assert (q_tsubj == _graph.types[0] and q_tobj == _graph.types[1]) or \
@@ -244,17 +247,26 @@ def find_entailment_matches_from_graph(_graph, ent, ref_rels, typematch_flag, fe
 
 			cur_tscores = _graph.get_features(r_tpred_querytype, q_tpred_querytype)
 			if cur_tscores is not None:
-				print(f"cur tscores length: {len(cur_tscores)}")
-				print(f"Attention! Check this feat_idx matter!", file=sys.stderr)
+				# print(f"cur tscores length: {len(cur_tscores)}")
+				# print(f"Attention! Check this feat_idx matter!", file=sys.stderr)
+				if cur_tscores[0] > 0 and cur_tscores[0] < 0.99:
+					num_true_entailments += 1
 				curfeat_cur_tscore = cur_tscores[effective_feat_idx]
 				if maximum_tscore is None or curfeat_cur_tscore > maximum_tscore:
 					max_tscore_ref = r_tpred_querytype
 					maximum_tscore = curfeat_cur_tscore
+		else:
+			num_true_entailments = None
 
 		cur_uscores_fwd = _graph.get_features(r_tpred_graphtype_fwd, q_tpred_graphtype_fwd)
 		cur_uscores_rev = _graph.get_features(r_tpred_graphtype_rev, q_tpred_graphtype_rev)
 
 		if cur_uscores_fwd is not None:
+			if cur_uscores_fwd[1] > 0 and cur_uscores_fwd[1] < 0.99:
+				# print(cur_uscores_fwd)
+				# [0.43617837 0.2739726  0.16573886 0.18112025 0.13438165 0.09970408, 0.5        0.5        1.         0.5        1.         1.        ]
+				# print("!")
+				pass
 			curfeat_cur_uscore_fwd = cur_uscores_fwd[effective_feat_idx]
 			if maximum_uscore is None or curfeat_cur_uscore_fwd > maximum_uscore:
 				max_uscore_ref = r_tpred_graphtype_fwd
@@ -265,22 +277,22 @@ def find_entailment_matches_from_graph(_graph, ent, ref_rels, typematch_flag, fe
 				max_uscore_ref = r_tpred_graphtype_rev
 				maximum_uscore = curfeat_cur_uscore_rev
 
-	if debug:
-		print(f"query: {q_tpred_querytype}")
-		print(f"max_tscore_ref: {max_tscore_ref}")
-		print(f"max_uscore_ref: {max_uscore_ref}")
+	if debug and maximum_tscore is not None:
+		print(f"query: {q_tpred_querytype}; max_tscore_ref: {max_tscore_ref}; max_uscore_ref: {max_uscore_ref}")
 
-	return maximum_tscore, maximum_uscore
+	return maximum_tscore, maximum_uscore, num_true_entailments
 
 
 def qa_eval_boolean_all_partitions(args, date_slices, data_entries, entry_processed_flags, entry_tscores,
-								   entry_uscores=None, gr=None):
+								   entry_uscores=None, gr=None, loaded_data_refs_by_partition=None,
+								   loaded_ref_triples_by_partition=None, suppress=False):
 	if args.eval_method in ['bert1', 'bert2', 'bert3']:
-		bert_tokenizer = transformers.BertTokenizer.from_pretrained('bert-base-chinese')
-		bert_model = transformers.BertModel.from_pretrained('bert-base-chinese')
-		bert_model.eval()
-		args.device = torch.device(args.device_name) if torch.cuda.is_available() else torch.device('cpu')
-		bert_model = bert_model.to(args.device)
+		with torch.no_grad():
+			bert_tokenizer = transformers.BertTokenizer.from_pretrained('bert-base-chinese')
+			bert_model = transformers.BertModel.from_pretrained('bert-base-chinese')
+			bert_model.eval()
+			args.device = torch.device(args.device_name) if torch.cuda.is_available() else torch.device('cpu')
+			bert_model = bert_model.to(args.device)
 	elif args.eval_method in ['eg']:
 		bert_tokenizer = None
 		bert_model = None
@@ -290,29 +302,66 @@ def qa_eval_boolean_all_partitions(args, date_slices, data_entries, entry_proces
 
 	dur_loadtriples = 0.0
 	this_total_num_matches = 0
+	sum_data_refs = 0.0
+	sum_data = 0.0
+	sum_typed_ents = 0.0
+	sum_typematches = 0.0
+
+	if loaded_data_refs_by_partition is None:
+		load_data_refs_flag = False
+		store_data_refs_flag = False
+	elif len(loaded_data_refs_by_partition) == 0:
+		assert isinstance(loaded_data_refs_by_partition, dict)
+		load_data_refs_flag = False
+		store_data_refs_flag = True
+	else:
+		assert len(loaded_data_refs_by_partition) == len(date_slices) or args.debug
+		load_data_refs_flag = True
+		store_data_refs_flag = False
+
+	if loaded_ref_triples_by_partition is None:
+		load_triples_flag = False
+		store_triples_flag = False
+	elif len(loaded_ref_triples_by_partition) == 0:
+		assert isinstance(loaded_ref_triples_by_partition, dict)
+		load_triples_flag = False
+		store_triples_flag = True
+	else:
+		assert len(loaded_ref_triples_by_partition) == len(date_slices) or args.debug
+		load_triples_flag = True
+		store_triples_flag = False
 
 	for partition_key in date_slices:
 
-		if partition_key != '03-25_03-27':
-			print(f"Processing only partition ``03-25_03-27'', skipping current partition!")
+		if args.debug and partition_key != '07-26_07-28':
+			if not suppress:
+				print(f"Processing only partition ``07-26_07-28'', skipping current partition!")
 			continue
 
-		print(f"Processing partition {partition_key}! Loading time so far: {dur_loadtriples} seconds")
+		if not suppress:
+			print(f"Processing partition {partition_key}! Loading time so far: {dur_loadtriples} seconds")
 		partition_triple_path = os.path.join(args.sliced_triples_dir,
 											 args.sliced_triples_base_fn % (args.slicing_method, partition_key))
 		partition_triples_in_sents = []
 
 		st_loadtriples = time.time()
-		with open(partition_triple_path, 'r', encoding='utf8') as fp:
-			for line in fp:
-				item = json.loads(line)
-				partition_triples_in_sents.append(item)
+		if load_triples_flag:
+			partition_triples_in_sents = loaded_ref_triples_by_partition[partition_key]
+		else:
+			with open(partition_triple_path, 'r', encoding='utf8') as fp:
+				for line in fp:
+					item = json.loads(line)
+					partition_triples_in_sents.append(item)
+		if store_triples_flag:
+			loaded_ref_triples_by_partition[partition_key] = partition_triples_in_sents
+		else:
+			pass
 		et_loadtriples = time.time()
 		dur_loadtriples += (et_loadtriples - st_loadtriples)
 
 		# build up the current-partition-dataset
 		cur_partition_data_entries = []
-		cur_partition_data_refs = []
+		cur_partition_data_refs = []  # this does not change across different graphs, and can be computed once and loaded each time afterwards!
 		cur_partition_global_dids = []
 		cur_partition_typematched_flags = []
 		for iid, item in enumerate(data_entries):
@@ -338,28 +387,60 @@ def qa_eval_boolean_all_partitions(args, date_slices, data_entries, entry_proces
 			ep_rev = '::'.join([obj, subj])
 			if ep_fwd not in ep_to_cur_partition_dids:
 				ep_to_cur_partition_dids[ep_fwd] = []
-			ep_to_cur_partition_dids[ep_fwd].append((cid, True))
+			ep_to_cur_partition_dids[ep_fwd].append((cid, True, upred))
+
 			if ep_rev not in ep_to_cur_partition_dids:
 				ep_to_cur_partition_dids[ep_rev] = []
-			ep_to_cur_partition_dids[ep_rev].append((cid, False))
+			ep_to_cur_partition_dids[ep_rev].append((cid, False, upred))
 
 		# sort out the related sent and rel ids for each entity pair
-		for sidx, sent_item in enumerate(partition_triples_in_sents):
-			if args.debug and sidx > 100000:
-				break
-			for ridx, r in enumerate(sent_item['rels']):
-				rupred, rsubj, robj, rtsubj, rtobj = parse_rel(r)
-				r_ep = '::'.join([rsubj,
-								  robj])  # reference entity pair may be in the same order or reversed order w.r.t. the queried entity pair.
-				if r_ep in ep_to_cur_partition_dids:
-					for (cur_partition_did, aligned) in ep_to_cur_partition_dids[r_ep]:
-						assert isinstance(aligned, bool)
-						cur_partition_data_refs[cur_partition_did].append((sidx, ridx, aligned))
+		# if ``delete-same-rel-sents'', delete the sentences with the exact same relations.
+		# (or maybe put that into a filter for positives, the occurrence of entity pairs do not count the ones with the same predicate.)
+		if load_data_refs_flag is True:
+			assert len(loaded_data_refs_by_partition[partition_key]) == len(cur_partition_data_refs)
+			cur_partition_data_refs = loaded_data_refs_by_partition[partition_key]
+		else:
+			for sidx, sent_item in enumerate(partition_triples_in_sents):
+				if args.debug and sidx > 100000:
+					break
+				for ridx, r in enumerate(sent_item['rels']):
+					rupred, rsubj, robj, rtsubj, rtobj = parse_rel(r)
+					r_ep = '::'.join([rsubj,
+									  robj])  # reference entity pair may be in the same order or reversed order w.r.t. the queried entity pair.
+					if r_ep in ep_to_cur_partition_dids:
+						for (cur_partition_did, aligned, query_upred) in ep_to_cur_partition_dids[r_ep]:
+							assert isinstance(aligned, bool)
+
+							# skip that sentence where the query is found! Also skip those relations that are the same as the query relation.
+							# TODO: but leave those sentences that have the exact match relations to the query relation be!
+							# TODO: if there are other relations in those sentences, and they are extracted, then these sentences
+							# TODO: would still be used as part of context!
+							if sidx != cur_partition_data_entries[cur_partition_did]['in_partition_sidx']:
+								if (not args.keep_same_rel_sents) and query_upred == rupred:
+									if args.debug:
+										# print(f"Same predicate!")
+										pass
+									pass
+								else:
+									cur_partition_data_refs[cur_partition_did].append((sidx, ridx, aligned))
+							else:
+								if args.debug:
+									# print(f"Same sentence: ref rel: {r}; query rel: {cur_partition_data_entries[cur_partition_did]['r']}")
+									pass
+		if store_data_refs_flag:
+			assert loaded_data_refs_by_partition is not None
+			loaded_data_refs_by_partition[partition_key] = cur_partition_data_refs
+		else:
+			pass
+
+		for cid, reflst in enumerate(cur_partition_data_refs):
+			sum_data += 1
+			sum_data_refs += len(reflst)
 
 		st_calcscore = time.time()
 		# calculate the confidence value for each entry
 		for cid, ent in enumerate(cur_partition_data_entries):
-			if cid % 100 == 1:
+			if cid % 2000 == 1:
 				ct_calcscore = time.time()
 				dur_calcscore = ct_calcscore - st_calcscore
 				print(f"calculating score for data entry {cid} / {len(cur_partition_data_entries)} for current partition;")
@@ -389,9 +470,12 @@ def qa_eval_boolean_all_partitions(args, date_slices, data_entries, entry_proces
 					this_rel = partition_triples_in_sents[sid]['rels'][rid]
 					this_rel['aligned'] = aligned
 					ref_rels.append(this_rel)
-				cur_score, cur_uscore = find_entailment_matches_from_graph(gr, ent, ref_rels,
+				cur_score, cur_uscore, cur_num_true_entailments = find_entailment_matches_from_graph(gr, ent, ref_rels,
 																		   cur_partition_typematched_flags[cid],
 																		   feat_idx=args.eg_feat_idx, debug=args.debug)
+				if cur_num_true_entailments is not None:
+					sum_typed_ents += cur_num_true_entailments
+					sum_typematches += 1
 			else:
 				raise AssertionError
 
@@ -403,6 +487,7 @@ def qa_eval_boolean_all_partitions(args, date_slices, data_entries, entry_proces
 				if cur_score is None:
 					cur_score = 0.0
 				entry_tscores[cur_partition_global_dids[cid]] = cur_score
+				entry_processed_flags[cur_partition_global_dids[cid]] = True
 			else:
 				assert cur_score is None
 
@@ -419,7 +504,18 @@ def qa_eval_boolean_all_partitions(args, date_slices, data_entries, entry_proces
 			# TODO: so this zero-score should be counted in the denominator, and should not be ignored.
 			if cur_uscore is not None and ((not args.ignore_0_for_Avg) or cur_uscore > 0.0000000001):  # a small number, not zero for numerical stability
 				entry_uscores[cur_partition_global_dids[cid]].append(cur_uscore)
-			entry_processed_flags[cur_partition_global_dids[cid]] = True
+
+	if sum_data > 0:
+		avg_refs_per_entry = sum_data_refs / sum_data
+		print(f"Average number of references per entry: {avg_refs_per_entry}")
+	else:
+		print(f"Anomaly! sum_data not larger than zero! sum_data: {sum_data}; sum_data_refs: {sum_data_refs}.")
+	if sum_typematches > 0:
+		avg_typed_ents = sum_typed_ents / sum_typematches
+		print(f"Average number of typed entailment edges utilized: {avg_typed_ents}")
+	else:
+		print("No type match found! avg_typed_ents equals to 0.")
+
 	return dur_loadtriples, this_total_num_matches
 
 
@@ -430,7 +526,7 @@ def qa_eval_boolean_main(args, date_slices):
 	entry_tscores = [None for x in range(len(data_entries))]
 	entry_uscores = [[] for x in range(len(data_entries))]
 
-	all_tps = []
+	all_tps = []  # all_type_pairs
 
 	total_dur_loadtriples = 0.0
 
@@ -439,26 +535,38 @@ def qa_eval_boolean_main(args, date_slices):
 	# So in the outer loop, iterate over all type-pairs; for each type pair, retrieve results from the corresponding subgraphs
 
 	if args.eval_method == 'eg':
+		if args and args.eg_feat_idx is not None:
+			graph.Graph.featIdx = args.eg_feat_idx
+
 		files = os.listdir(args.eg_dir)
 		files.sort()
 		num_type_pairs_processed = 0
+		num_type_pairs_processed_reported_flag = False
+
+		loaded_data_refs_by_partition = {}
+		loaded_ref_triples_by_partition = {}
+
 		for f in files:
-			if num_type_pairs_processed % 50 == 1:
+			if num_type_pairs_processed % 50 == 1 and not num_type_pairs_processed_reported_flag:
 				print(f"num processed type pairs: {num_type_pairs_processed}")
+				num_type_pairs_processed_reported_flag = True
 			if not f.endswith(args.eg_suff):
 				continue
 			gpath = os.path.join(args.eg_dir, f)
+			if os.path.getsize(gpath) < args.min_graphsize:
+				continue
 			gr = graph.Graph(gpath=gpath, args=args)
 			gr.set_Ws()
 			all_tps.append(gr.types)
 
 			cur_dur_loadtriples, this_num_matches = qa_eval_boolean_all_partitions(args, date_slices, data_entries, entry_processed_flags, entry_tscores,
-										   entry_uscores=entry_uscores, gr=gr)
+										   entry_uscores=entry_uscores, gr=gr, loaded_data_refs_by_partition=loaded_data_refs_by_partition,
+										   loaded_ref_triples_by_partition=loaded_ref_triples_by_partition, suppress=True)
 			total_dur_loadtriples += cur_dur_loadtriples
 			num_type_pairs_processed += 1
+			num_type_pairs_processed_reported_flag = False
 			this_percent_matches = '%.2f' % (100 * this_num_matches / len(data_entries))
 			print(f"Finished processing for graph of types: {gr.types[0]}#{gr.types[1]}; num of entries matched: {this_num_matches} -> {this_percent_matches} percents of all entries.")
-		raise NotImplementedError
 	elif args.eval_method == 'bert1':
 		# TODO: build TF-IDF algorithm (maybe re-use part of DrQA), retrieve the documents, then use similar codes as ``calc_per_entry_score_bert'' above.
 		raise NotImplementedError
@@ -515,9 +623,8 @@ def qa_eval_boolean_main(args, date_slices):
 	# 	for eidx, flg in enumerate(entry_processed_flags):
 	# 		assert eidx in skip_idxes or flg
 
-	# TODO: this ``skipping those data entries whose type-pairs unmatched by any sub-graph'' thing, it should not be
-	# TODO: necessary with backupAvg, and should not be reasonable without backupAvg. It kind of biases the evaluation.
-	# TODO: remove this.
+	# this ``skipping those data entries whose type-pairs unmatched by any sub-graph'' thing, it should not be
+	# necessary with backupAvg, and should not be reasonable without backupAvg. It kind of biases the evaluation.
 	final_scores = []  # this is typed score if not backupAvg, and back-up-ed score if backupAvg
 	final_labels = []
 	for eidx, (tscr, uscr, ent) in enumerate(zip(entry_tscores, entry_avg_uscores, data_entries)):
@@ -534,7 +641,7 @@ def qa_eval_boolean_main(args, date_slices):
 			final_labels.append(0)
 		else:
 			raise AssertionError
-	assert len(final_labels) == len(final_scores)
+	assert len(final_labels) == len(final_scores) and len(final_labels) == len(data_entries)
 
 	prec, rec, thres = precision_recall_curve(final_labels, final_scores)
 	assert len(prec) == len(rec) and len(prec) == len(thres) + 1
@@ -544,12 +651,12 @@ def qa_eval_boolean_main(args, date_slices):
 	if args.eval_method in ['bert1', 'bert2', 'bert3']:
 		method_ident_str = args.eval_method
 	elif args.eval_method in ['eg']:
-		method_ident_str = '_'.join([args.eval_method, args.eg_name])
+		method_ident_str = '_'.join([args.eval_method, os.path.split(args.eg_name)[-1], args.eg_suff])
 	else:
 		raise AssertionError
 	with open(args.predictions_path % method_ident_str, 'w', encoding='utf8') as fp:
-		for s, l in zip(final_scores, final_labels):
-			fp.write(f"{s}\t{l}\n")
+		for t, u, s, l in zip(entry_tscores, entry_avg_uscores, final_scores, final_labels):
+			fp.write(f"{t}\t{u}\t{s}\t{l}\n")
 
 	with open(args.pr_rec_path % method_ident_str, 'w', encoding='utf8') as fp:
 		fp.write(f"auc: {auc_value}\n")
@@ -589,7 +696,9 @@ if __name__ == '__main__':
 	parser.add_argument('--backupAvg', action='store_true')
 	parser.add_argument('--ignore_0_for_Avg', action='store_true',
 						help='whether or not to ignore the zero entailment scores for averages, or to take them in in the denominator.')
+	parser.add_argument('--keep_same_rel_sents', action='store_true')
 	parser.add_argument('--device_name', type=str, default='cpu')
+	parser.add_argument('--min_graphsize', type=int, default=20480)
 
 	# flags below are put here for the graph initializer, but generally they should not be changed.
 	parser.add_argument('--saveMemory', action='store_true')
@@ -601,7 +710,7 @@ if __name__ == '__main__':
 	assert args.eval_set in ['dev', 'test']
 	assert args.slicing_method in ['disjoint', 'sliding']
 	assert args.eval_mode in ['boolean', 'wh']
-	assert args.eval_method in ['bert1', 'bert2', 'bert3', 'EG']
+	assert args.eval_method in ['bert1', 'bert2', 'bert3', 'eg']
 
 	args.fpath = args.fpath_base % (args.version, args.eval_set)
 	args.eg_dir = os.path.join(args.eg_root, args.eg_name)
@@ -618,6 +727,8 @@ if __name__ == '__main__':
 		date_slices, _ = datemngr.setup_dates(args.time_interval)
 	else:
 		raise AssertionError
+
+	print(args)
 
 	if args.eval_mode in ['wh']:
 		raise NotImplementedError
