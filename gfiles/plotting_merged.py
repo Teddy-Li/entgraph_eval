@@ -3,7 +3,7 @@ import argparse
 import sys
 
 
-def plot_from_file(ifn, label, only_highprec):
+def plot_from_file(ifn, label, only_highprec, truncate_lowrec):
 	precrecs = [[], []]
 	with open(ifn, 'r', encoding='utf8') as fp:
 		for line in fp:
@@ -22,7 +22,7 @@ def plot_from_file(ifn, label, only_highprec):
 					pr, rec, thres = val_list
 				else:
 					raise AssertionError
-				if (pr > 0.5 or not only_highprec) and rec != 0:
+				if (pr > 0.5 or not only_highprec) and rec != 0 and (rec > 0.01 or not truncate_lowrec):
 					precrecs[0].append(pr)
 					precrecs[1].append(rec)
 	plt.plot(precrecs[1], precrecs[0], label=label)
@@ -33,9 +33,11 @@ def main():
 	parser.add_argument('--mode', type=str, default='dev_merge', help='[basic/baselines/google_PLM/nosame/dev_merge/test_merge]')
 	parser.add_argument('--grid_search', type=int, default=1, help='Whether or not to grid search a best proportion between 0 and 2')
 	parser.add_argument('--only_highprec', type=int, default=1, help='Whether or not to only plot the area with 50% plus precision.')
+	parser.add_argument('--truncate_lowrec', type=int, default=1, help='Whether or not to truncate the area with < 0.1% recall.')
 	args = parser.parse_args()
 	args.grid_search = True if args.grid_search > 0 else False
 	args.only_highprec = True if args.only_highprec > 0 else False
+	args.truncate_lowrec = True if args.truncate_lowrec > 0 else False
 
 	input_list = []
 	if args.mode == 'basic':
@@ -46,23 +48,23 @@ def main():
 		# input_list.append(['./results/pr_rec_orig_dev_exhaust_jia_22/global_scores_orig_dev_apooling_binc_JIA.txt', 'Jia'])
 		input_list.append(['./results/pr_rec_orig_dev_exhaust_bsl_22/global_scores_orig_dev_apooling_binc_BSL.txt', 'DDPORE'])
 		input_list.append(['./results_en/pr_rec/global_scores.txt', 'Housseini 2018'])
-		input_list.append(['./results/pr_rec_orig_dev_exhaust_22/global_scores_orig_dev_apooling_binc.txt', 'Zh_EG'])
-		input_list.append(['./results/pr_rec_merged_dev/scores_avg_0.30.txt', 'Ensemble AVG'])
-		input_list.append(['./results/pr_rec_merged_dev_plusplus/scores_avg_0.10.txt', 'Ensemble++ AVG'])
+		input_list.append(['./results/pr_rec_orig_dev_exhaust_22/global_scores_orig_dev_apooling_binc_2_1e-4_1e-2.txt.txt', 'Zh_EG'])
+		input_list.append(['./results/pr_rec_merged_dev/scores_avg_1.00.txt', 'Ensemble AVG'])
+		input_list.append(['./results/pr_rec_merged_dev_plusplus/scores_MAX_0.30.txt', 'Ensemble++ MAX'])
 	elif args.mode == 'clpen_dev':
 		input_list.append(['./results_en/pr_rec/global_scores_clp_enbert.txt', 'CLPEN_enBert local'])
 		input_list.append(['./results_en/pr_rec/global_scores_clp_mbert.txt', 'CLPEN_mBert local'])
 		input_list.append(['./results_en/pr_rec/global_scores.txt', 'TACL Global'])
 		input_list.append(['./results_Teddy/Aug_context_MC_dev_global.txt', 'CLP_reported global'])
 	elif args.mode == 'baselines_test':
-		input_list.append(['./results/pr_rec_orig_test/bert_sim_scores.txt', 'Bert'])
+		input_list.append(['./results/pr_rec_orig_test/bert_sim_scores.txt', '$Bert;\tAUC: 3.2$'])
 		# input_list.append(['./results/pr_rec_orig_test_exhaust_jia_22/global_scores_orig_test_apooling_binc_JIA.txt', 'Jia'])
-		input_list.append(['./results/pr_rec_orig_test_exhaust_bsl_22/global_scores_orig_test_apooling_binc_BSL.txt', 'DDPORE'])
-		input_list.append(['./results/pr_rec_orig_test_exhaust_22/global_scores_orig_test_apooling_binc.txt', '$EG_{Zh}$'])
-		input_list.append(['./results_en/pr_rec/global_scores_test.txt', '$EG_{En}$'])
-		input_list.append(['./results/pr_rec_merged_test/scores_max_0.50.txt', 'Ensemble MAX'])
-		input_list.append(['./results_Teddy/Aug_context_MC_test_global.txt', '$EG_{En}$++'])
-		input_list.append(['./results/pr_rec_merged_test_plusplus/scores_avg_0.10.txt', 'Ensemble++ AVG'])
+		input_list.append(['./results/pr_rec_orig_test_exhaust_bsl_22/global_scores_orig_test_apooling_binc_BSL.txt', '$DDPORE;\tAUC: 5.9$'])
+		input_list.append(['./results/pr_rec_orig_test_exhaust_22/global_scores_orig_test_apooling_binc_2_1e-4_1e-2.txt.txt', '$EG_{Zh};\tAUC: 9.4$'])
+		input_list.append(['./results_en/pr_rec/global_scores_test.txt', '$EG_{En};\tAUC: 16.5$'])
+		input_list.append(['./results/pr_rec_merged_test/scores_avg_1.00.txt', 'Ensemble AVG; AUC: 22.1'])
+		input_list.append(['./results_Teddy/Aug_context_MC_test_global.txt', '$EG_{En}$++; AUC: 19.5'])
+		input_list.append(['./results/pr_rec_merged_test_plusplus/scores_avg_0.30.txt', 'Ensemble++ AVG; AUC: 24.2'])
 	elif args.mode == 'clpen_test':
 		input_list.append(['./results_en/pr_rec/global_scores_clp_enbert_test.txt', 'CLPEN_enBert local'])
 		input_list.append(['./results_en/pr_rec/global_scores_clp_mbert_test.txt', 'CLPEN_mBert local'])
@@ -75,7 +77,7 @@ def main():
 	elif args.mode == 'ablation_others_test':
 		input_list.append(['./results/pr_rec_orig_test_exhaust_14_14/global_scores_orig_test_apooling_binc_untyped.txt',
 						   '$EG_{Zh} -type$'])
-		input_list.append(['./results/pr_rec_orig_test_exhaust_22/global_scores_orig_test_apooling_binc.txt', '$EG_{Zh}$'])
+		input_list.append(['./results/pr_rec_orig_test_exhaust_22/global_scores_orig_test_apooling_binc_2_1e-4_1e-2.txt.txt', '$EG_{Zh}$'])
 		input_list.append(['./results_en/pr_rec_merged_test_bt/scores_max_0.10.txt', 'BackTrans Esb'])
 		input_list.append(['./results_en/pr_rec/global_scores_test.txt', '$EG_{En}$'])
 	elif args.mode == 'google_PLM':
@@ -168,17 +170,23 @@ def main():
 		input_list.append(['./results/pr_rec_merged_test/scores_avg_%s.txt' % factor_list[3], 'AVG'])
 		input_list.append(['./results/pr_rec_merged_test/scores_min_%s.txt' % factor_list[4], 'MIN'])
 	elif args.mode == 'dev_qaeval':
-		input_list.append(['./qaeval_results/15_30_triple_doc_disjoint_40000_2_lexic_wordnet_dev/bert2_prt_vals.tsv', 'Bert 2'])
-		input_list.append(['./qaeval_results/15_30_triple_doc_disjoint_40000_2_lexic_wordnet_dev/bert3_prt_vals.tsv', 'Bert 3'])
-		input_list.append(['./qaeval_results/15_30_triple_doc_disjoint_40000_2_lexic_wordnet_dev/eg_typedEntGrDir_Chinese2_2_prt_vals.tsv', 'EG binc_2'])
+		input_list.append(['./qaeval_results/15_30_triple_doc_disjoint_40000_2_lexic_wordnet_dev/bert1_prt_vals.tsv', '$BERT_{tfidf}$;\tAUC: 10.0'])
+		input_list.append(['./qaeval_results/15_30_triple_doc_disjoint_40000_2_lexic_wordnet_dev/bert2_prt_vals.tsv', '$BERT_{sent}$;\tAUC: 7.1'])
+		input_list.append(['./qaeval_results/15_30_triple_doc_disjoint_40000_2_lexic_wordnet_dev/bert3_prt_vals.tsv', '$BERT_{rel}$;\tAUC: 38.8'])
+		input_list.append(['./qaeval_results/15_30_triple_doc_disjoint_40000_2_lexic_wordnet_dev/eg_typedEntGrDir_Chinese_BSL2_2__binc_1_1e-4_1e-2.txt_prt_vals.tsv', 'DDPORE; AUC: 42.5'])
+		input_list.append(['./qaeval_results/15_30_triple_doc_disjoint_40000_2_lexic_wordnet_dev/eg_typedEntGrDir_Chinese2_2_prt_vals.tsv', '$EG_{Zh}$;\tAUC: 60.3'])
 	elif args.mode == 'test_qaeval':
-		input_list.append(['./qaeval_results/15_30_triple_doc_disjoint_40000_2_lexic_wordnet_test/bert2_prt_vals.tsv', 'Bert 2'])
-		input_list.append(['./qaeval_results/15_30_triple_doc_disjoint_40000_2_lexic_wordnet_test/bert3_prt_vals.tsv', 'Bert 3'])
+		input_list.append(['./qaeval_results/15_30_triple_doc_disjoint_40000_2_lexic_wordnet_test/bert1_prt_vals.tsv', '$BERT_{tfidf}$;\tAUC: 12.8'])
+		input_list.append(['./qaeval_results/15_30_triple_doc_disjoint_40000_2_lexic_wordnet_test/bert2_prt_vals.tsv', '$BERT_{sent}$;\tAUC: 3.6'])
+		input_list.append(['./qaeval_results/15_30_triple_doc_disjoint_40000_2_lexic_wordnet_test/bert3_prt_vals.tsv', '$BERT_{rel}$;\tAUC: 40.5'])
+		input_list.append(['./qaeval_results/15_30_triple_doc_disjoint_40000_2_lexic_wordnet_test/eg_typedEntGrDir_Chinese_BSL2_2__binc_1_1e-4_1e-2.txt_prt_vals.tsv', '$DDPORE$; AUC: 41.7'])
+		input_list.append(['./qaeval_results/15_30_triple_doc_disjoint_40000_2_lexic_wordnet_test/eg_typedEntGrDir_Chinese2_2__binc_1_1e-4_1e-2.txt_prt_vals.tsv',
+							  '$EG_{Zh}$;\tAUC: 59.0'])
 	else:
 		raise AssertionError
 
 	for ifn, label in input_list:
-		plot_from_file(ifn, label, args.only_highprec)
+		plot_from_file(ifn, label, args.only_highprec, args.truncate_lowrec)
 	plt.xlabel('recall')
 	plt.ylabel('precision')
 	plt.title("Precision Recall Curves")
