@@ -1,7 +1,7 @@
 import os
 import argparse
 from qaeval_utils import DateManager
-from qaeval_chinese_general_functions import mask_entities_for_entries
+from qaeval_chinese_general_functions import mask_entities_for_entries, mask_negi_entities_for_entries
 from qaeval_chinese_wh_functions import qa_eval_wh_main
 from qaeval_chinese_boolean_functions import qa_eval_boolean_main
 
@@ -14,6 +14,8 @@ if __name__ == '__main__':
 						default='../../QAEval/clue_final_samples_%s_%s.json')
 	parser.add_argument('--wh_fpath_base', type=str,
 						default='../../QAEval/clue_wh_final_samples_%s_%s.json')
+	parser.add_argument('--negi_fpath_base', type=str,
+						default='../../QAEval/clue_negi_final_samples_%s_%s.json')
 	parser.add_argument('--sliced_triples_dir', type=str,
 						default='../../QAEval/clue_time_slices/')
 	parser.add_argument('--slicing_method', type=str, default='disjoint')
@@ -43,6 +45,11 @@ if __name__ == '__main__':
 	parser.add_argument('--min_graphsize', type=int, default=20480)
 	parser.add_argument('--max_context_size', type=int, default=3200,
 						help='the maximum number of context sentences/rels to look at when answering each query')
+	parser.add_argument('--bert_dir', type=str, default='/home/s2063487/bert_checkpoints/bert_base_chinese')
+	parser.add_argument('--mt5_dir', type=str, default='/home/s2063487/bert_checkpoints/mt5_small')
+
+	parser.add_argument('--refs_cache_dir', type=str, default='./cache_dir/refs_%s.json')
+	parser.add_argument('--triples_cache_dir', type=str, default='./cache_dir/triples_%s.json')
 
 	# flags for `wh' evaluation setting only.
 	parser.add_argument('--mask_only_objs', action='store_true')
@@ -64,6 +71,11 @@ if __name__ == '__main__':
 							 'asserted to remain the same as in the query triple.')
 	parser.add_argument('--wh_predictions_fn', type=str, default='%s_wh_predictions.txt')
 	parser.add_argument('--wh_results_fn', type=str, default='%s_wh_evalresults.txt')
+	parser.add_argument('--max_t5_seq_length', type=int, default=600,
+						help='maximum sequence length for the B type BERT baselines: the maximum length of the concatenated '
+							 'context sentences with the appended query.')
+
+	parser.add_argument('--no_cache', action='store_true')
 
 	# flags below are for the TF-IDF ranker.
 	parser.add_argument('--tfidf_path', type=str,
@@ -82,11 +94,13 @@ if __name__ == '__main__':
 	args.CCG = True
 	assert args.eval_set in ['dev', 'test']
 	assert args.slicing_method in ['disjoint', 'sliding']
-	assert args.eval_mode in ['boolean', 'wh', 'whmasking']
+	assert args.eval_mode in ['boolean', 'wh', 'wh_masking']
 	assert args.eval_method in ['bert1A', 'bert2A', 'bert3A', 'bert1B', 'bert2B', 'bert3B', 'eg']
 
 	args.fpath = args.fpath_base % (args.version, args.eval_set)
 	args.wh_fpath = args.wh_fpath_base % (args.version, args.eval_set)
+	args.negi_fpath = args.negi_fpath_base % (args.version, args.eval_set)
+
 	args.eg_dir = os.path.join(args.eg_root, args.eg_name)
 	# args.skip_idxes_fn = args.skip_idxes_fn % (args.version, args.eval_set)
 	args.result_dir = args.result_dir % (args.version, args.eval_set)
@@ -111,6 +125,8 @@ if __name__ == '__main__':
 		qa_eval_wh_main(args, date_slices)
 	elif args.eval_mode in ['wh_masking']:
 		mask_entities_for_entries(args)
+	elif args.eval_mode in ['negi_masking']:
+		mask_negi_entities_for_entries(args)
 	elif args.eval_mode in ['boolean']:
 		qa_eval_boolean_main(args, date_slices)
 

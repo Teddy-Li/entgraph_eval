@@ -1,9 +1,9 @@
 from qaeval_utils import DateManager, parse_rel, calc_simscore, duration_format_print
-from graph import graph
 import sys
 sys.path.append("..")
 sys.path.append("../../DrQA/")
 sys.path.append("/Users/teddy/PycharmProjects/DrQA/")
+from graph import graph
 from drqa.retriever.tfidf_doc_ranker import TfidfDocRanker
 from qaeval_chinese_general_functions import load_data_entries, type_matched, reconstruct_sent_from_rel, \
 	calc_per_entry_score_bert, find_entailment_matches_from_graph
@@ -22,8 +22,8 @@ def qa_eval_boolean_all_partitions(args, date_slices, data_entries, entry_proces
 								   loaded_ref_triples_by_partition=None, suppress=False):
 	if args.eval_method in ['bert1A', 'bert2A', 'bert3A']:
 		with torch.no_grad():
-			bert_tokenizer = transformers.BertTokenizer.from_pretrained('bert-base-chinese')
-			bert_model = transformers.BertModel.from_pretrained('bert-base-chinese')
+			bert_tokenizer = transformers.BertTokenizer.from_pretrained(args.bert_dir)
+			bert_model = transformers.BertModel.from_pretrained(args.bert_dir)
 			bert_model.eval()
 			args.device = torch.device(args.device_name) if torch.cuda.is_available() else torch.device('cpu')
 			bert_model = bert_model.to(args.device)
@@ -208,8 +208,8 @@ def qa_eval_boolean_all_partitions(args, date_slices, data_entries, entry_proces
 					# print(rdid)
 					rsidxes = cur_partition_docids_to_in_partition_sidxes[rdid]
 					for rsidx in rsidxes:
-						ref_sents.append(partition_triples_in_sents[rsidx]['s'])
-
+						if rsidx != ent['in_partition_sidx']:
+							ref_sents.append(partition_triples_in_sents[rsidx]['s'])
 				cur_score = calc_per_entry_score_bert(ent, ref_rels=None, ref_sents=ref_sents,
 													  method=args.eval_method,
 													  max_spansize=args.max_spansize, bert_model=bert_model,
@@ -310,8 +310,8 @@ def qa_eval_boolean_main(args, date_slices):
 		num_type_pairs_processed = 0
 		num_type_pairs_processed_reported_flag = False
 
-		loaded_data_refs_by_partition = {}
-		loaded_ref_triples_by_partition = {}
+		loaded_data_refs_by_partition = None if args.no_cache else {}
+		loaded_ref_triples_by_partition = None if args.no_cache else {}
 
 		for f in files:
 			if num_type_pairs_processed % 50 == 1 and not num_type_pairs_processed_reported_flag:

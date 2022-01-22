@@ -1,35 +1,44 @@
 from qaeval_utils import DateManager, parse_rel, calc_simscore, duration_format_print
-from graph import graph
 import sys
 sys.path.append("..")
 sys.path.append("../../DrQA/")
 sys.path.append("/Users/teddy/PycharmProjects/DrQA/")
 
-from .qaeval_chinese_general_functions import load_data_entries, type_matched, reconstruct_sent_from_rel, \
-	calc_per_entry_score_bert, in_context_prediction_bert, find_entailment_matches_from_graph, find_answers_from_graph
+from graph import graph
+from qaeval_chinese_general_functions import load_data_entries, type_matched, type_contains, reconstruct_sent_from_rel, \
+	calc_per_entry_score_bert, in_context_prediction_bert, find_answers_from_graph
 import os
 import json
 import torch
 import transformers
 import time
+import psutil
 from drqa.retriever.tfidf_doc_ranker import TfidfDocRanker
 
 
 def qa_eval_wh_all_partitions(args, date_slices, data_entries, entry_restricted_tscores, entry_free_tscores=None,
 							  entry_uscores=None, gr=None, loaded_data_refs_by_partition=None,
 							  loaded_ref_triples_by_partition=None, suppress=False):
+	print(f"Starting qa_eval_wh_all_partitions!")
 	if args.eval_method in ['bert1A', 'bert1B', 'bert2A', 'bert2B', 'bert3A', 'bert3B']:
 		with torch.no_grad():
-			bert_tokenizer = transformers.T5Tokenizer.from_pretrained('google/mt5-small')
 			if args.eval_method in ['bert1A', 'bert2A', 'bert3A']:
-				bert_model = transformers.MT5Model.from_pretrained('google/mt5-small')
+				bert_tokenizer = transformers.BertTokenizer.from_pretrained(args.bert_dir)
+				bert_model = transformers.BertModel.from_pretrained(args.bert_dir)
+				args.device = torch.device(args.device_name) if torch.cuda.is_available() else torch.device('cpu')
+				bert_model = bert_model.to(args.device)
 			elif args.eval_method in ['bert1B', 'bert2B', 'bert3B']:
-				bert_model = transformers.MT5ForConditionalGeneration.from_pretrained('google/mt5-small')
+				bert_tokenizer = transformers.T5Tokenizer.from_pretrained(args.mt5_dir)
+				bert_model = transformers.MT5ForConditionalGeneration.from_pretrained(args.mt5_dir)
+				if torch.cuda.is_available():
+					device_map = {0: [0, 1, 2],
+								  1: [3, 4, 5, 6, 7]}
+					bert_model.parallelize(device_map)
+				# in this case, args.device is the first device, the one hosting the embeddings
+				args.device = torch.device(args.device_name) if torch.cuda.is_available() else torch.device('cpu')
 			else:
 				raise AssertionError
 			bert_model.eval()
-			args.device = torch.device(args.device_name) if torch.cuda.is_available() else torch.device('cpu')
-			bert_model = bert_model.to(args.device)
 		if args.eval_method in ['bert1A', 'bert1B']:
 			ranker = TfidfDocRanker(tfidf_path=args.tfidf_path, articleIds_by_partition_path=args.articleIds_dict_path,
 									strict=False)
@@ -135,6 +144,8 @@ def qa_eval_wh_all_partitions(args, date_slices, data_entries, entry_restricted_
 		indexarg_to_cur_partition_dids = {}
 		for cid, ent in enumerate(cur_partition_data_entries):
 			upred, subj, obj, tsubj, tobj = parse_rel(ent)
+			# if this flag is set to true, then the type of index args in context triples must be the same as the query,
+			# although not necessarily the same as the current graph (if the evaluation is for typed entailment graphs)
 			if args.assert_indexarg_type:
 				indexarg = '::'.join([ent['index_arg'], ent['index_type']])
 			else:
@@ -164,11 +175,10 @@ def qa_eval_wh_all_partitions(args, date_slices, data_entries, entry_restricted_
 							if r_indexsubj in indexarg_to_cur_partition_dids:
 								rindexarg_pos = 'subj'
 								r_indexarg = r_indexsubj
-							elif r_indexobj in indexarg_to_cur_partition_dids:
+							# CHANGES: the condition above and the condition below are not really mutually exclusive!
+							if r_indexobj in indexarg_to_cur_partition_dids:
 								rindexarg_pos = 'obj'
 								r_indexarg = r_indexobj
-							else:
-								raise AssertionError
 
 							for (cur_partition_did, qindexarg_pos, query_upred) in indexarg_to_cur_partition_dids[r_indexarg]:
 								assert qindexarg_pos in ['subj', 'obj']
@@ -215,10 +225,11 @@ def qa_eval_wh_all_partitions(args, date_slices, data_entries, entry_restricted_
 		st_calcscore = time.time()
 		# calculate the confidence value for each entry
 		for cid, ent in enumerate(cur_partition_data_entries):
-			if cid % 2000 == 1:
+			if cid % 1000 == 1:
 				ct_calcscore = time.time()
 				dur_calcscore = ct_calcscore - st_calcscore
 				print(f"calculating score for data entry {cid} / {len(cur_partition_data_entries)} for current partition;")
+				print(f"percentage of used memory: {psutil.virtual_memory().percent}")
 				duration_format_print(dur_calcscore, '')
 
 			cur_score = None
@@ -233,7 +244,8 @@ def qa_eval_wh_all_partitions(args, date_slices, data_entries, entry_restricted_
 					# print(rdid)
 					rsidxes = cur_partition_docids_to_in_partition_sidxes[rdid]
 					for rsidx in rsidxes:
-						ref_sents.append(partition_triples_in_sents[rsidx]['s'])
+						if rsidx != ent['in_partition_sidx']:
+							ref_sents.append(partition_triples_in_sents[rsidx]['s'])
 				if args.eval_method in ['bert1A']:
 					cur_rtscore = calc_per_entry_score_bert(ent, ref_rels=None, ref_sents=ref_sents,
 															method=args.eval_method, max_spansize=args.max_spansize,
@@ -244,7 +256,7 @@ def qa_eval_wh_all_partitions(args, date_slices, data_entries, entry_restricted_
 					cur_rtscore = in_context_prediction_bert(ent, ref_rels=None, ref_sents=ref_sents, method=args.eval_method,
 															 max_spansize=args.max_spansize, bert_model=bert_model,
 															 bert_tokenizer=bert_tokenizer, bert_device=args.device,
-															 max_context_size=args.max_context_size, debug=args.debug,
+															 max_seqlength=args.max_t5_seq_length, debug=args.debug,
 															 is_wh=True)
 				else:
 					raise AssertionError
@@ -269,7 +281,7 @@ def qa_eval_wh_all_partitions(args, date_slices, data_entries, entry_restricted_
 					cur_rtscore = in_context_prediction_bert(ent, ref_rels=ref_rels, ref_sents=ref_sents,
 															 method=args.eval_method, max_spansize=args.max_spansize,
 															 bert_model=bert_model, bert_tokenizer=bert_tokenizer,
-															 bert_device=args.device, max_context_size=args.max_context_size,
+															 bert_device=args.device, max_seqlength=args.max_t5_seq_length,
 															 debug=args.debug, is_wh=True)
 				else:
 					raise AssertionError
@@ -304,17 +316,20 @@ def qa_eval_wh_all_partitions(args, date_slices, data_entries, entry_restricted_
 			else:
 				assert cur_rtscore is None
 
-			if cur_ftscore is not None and ((not args.ignore_0_for_avg) or cur_ftscore > 0.0000000001):
+			if cur_ftscore is not None:
+				assert cur_partition_partial_typematched_flags[cid] is True
 				for answer_key in cur_ftscore:
-					if answer_key not in entry_free_tscores[cur_entry_global_id]:
-						entry_free_tscores[cur_entry_global_id][answer_key] = []
-					entry_free_tscores[cur_entry_global_id][answer_key].append(cur_ftscore[answer_key])
+					if (not args.ignore_0_for_Avg) or cur_ftscore[answer_key] > 0.0000000001:
+						if answer_key not in entry_free_tscores[cur_entry_global_id]:
+							entry_free_tscores[cur_entry_global_id][answer_key] = []
+						entry_free_tscores[cur_entry_global_id][answer_key].append(cur_ftscore[answer_key])
 
-			if cur_uscore is not None and ((not args.ignore_0_for_avg) or cur_uscore > 0.0000000001):  # a small number, not zero for numerical stability
+			if cur_uscore is not None:  # a small number, not zero for numerical stability
 				for answer_key in cur_uscore:
-					if answer_key not in entry_uscores[cur_entry_global_id]:
-						entry_uscores[cur_entry_global_id][answer_key] = []
-					entry_uscores[cur_entry_global_id][answer_key].append(cur_uscore[answer_key])
+					if (not args.ignore_0_for_Avg) or cur_uscore[answer_key] > 0.0000000001:
+						if answer_key not in entry_uscores[cur_entry_global_id]:
+							entry_uscores[cur_entry_global_id][answer_key] = []
+						entry_uscores[cur_entry_global_id][answer_key].append(cur_uscore[answer_key])
 
 	if sum_data > 0:
 		avg_refs_per_entry = sum_data_refs / sum_data
@@ -389,11 +404,12 @@ def wh_final_evaluation(args, data_entries, entry_tscores, entry_avg_ftscores=No
 				hit_at_X[X] += 1
 		try:
 			cur_rank = sorted_predictions.index(cur_label)
-			mrr += 1 / (float(cur_rank))
+			mrr += 1 / (float(cur_rank)+1)
 		except ValueError as e:
 			print(f"eidx: {eidx}; cur_label: {cur_label}; cur_fscr: ")
 			print(cur_fscr)
 
+	assert len(final_scores) > 0
 	for X in hit_at_X:
 		hit_at_X[X] /= float(len(final_scores))
 		print(f"Hit @ {X}: %.2f percents;" % (100 * hit_at_X[X]))
@@ -450,8 +466,8 @@ def qa_eval_wh_main(args, date_slices):
 		num_type_pairs_processed = 0
 		num_type_pairs_processed_reported_flag = False
 
-		loaded_data_refs_by_partition = {}
-		loaded_ref_triples_by_partition = {}
+		loaded_data_refs_by_partition = None if args.no_cache else {}
+		loaded_ref_triples_by_partition = None if args.no_cache else {}
 
 		for f in files:
 			if num_type_pairs_processed % 50 == 1 and not num_type_pairs_processed_reported_flag:

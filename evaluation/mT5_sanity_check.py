@@ -1,24 +1,28 @@
 import transformers
 from transformers import T5Tokenizer, MT5ForConditionalGeneration
+from qaeval_chinese_general_functions import prepare_string_for_T5Tokenizer
 
 mt5_tokenizer = T5Tokenizer.from_pretrained('google/mt5-small')
 mt5_model = MT5ForConditionalGeneration.from_pretrained('google/mt5-small')
 
-sents = ['咽 炎 是 <extra_id_0> 的 原 因 。 </s>',
-		'咽 炎 不 会 导 致 肺 炎 。 咽 炎 可 能 造 成 肿 痛 。 咽 炎 需 要 治 疗  。 西 瓜 霜 治 疗 咽 炎 。 咽 炎 是 <extra_id_0> 的 原 因 。 </s>',
-		'咽 炎 不 会 引 起 发 烧 。 咽 炎 导 致 肿 痛 。 西 瓜 霜 治 疗 咽 炎 。 咽 炎 是 <extra_id_0> 的 原 因 。 </s>',
+sents = ['咽炎是<extra_id_0>的原因。',
+		'咽炎不会导致肺炎。咽炎可能造成肿痛。咽炎需要治疗。西瓜霜治疗咽炎。咽炎是<extra_id_0>的原因。',
+		#'咽 炎 不 会 引 起 发 烧 。 咽 炎 导 致 肿 痛 。 西 瓜 霜 治 疗 咽 炎 。 咽 炎 是 <extra_id_0> 的 原 因 。 </s>',
 		 '印度是<extra_id_0>的国家。',
-		 '印 度 是 <extra_id_0> 的 国 家 。 </s>',
-		'中 国 是 <extra_id_0> 的 国 家 。 </s>',
-		'美 国 是 <extra_id_0> 的 国 家 。 </s>',
-		'法 国 是 <extra_id_0> 的 国 家 。 </s>',
-		 'China is a <extra_id_0> of the world. </s>',
-		 'United States is a <extra_id_0> of the world. </s>',
-		 'France is a <extra_id_0> of the world. </s>']
+		 '中国2020年GDP约为<extra_id_0>亿元。',
+		 '印 度 是 <extra_id_0> 的 国 家 。',
+		'印度 是 <extra_id_0> 的 国家 。',
+		'中 国 是 <extra_id_0> 的 国 家 。',
+		'美 国 是 <extra_id_0> 的 国 家 。',
+		'法 国 是 <extra_id_0> 的 国 家 。',
+		 'China is a <extra_id_0> of the world.',
+		 'United States is a <extra_id_0> of the world.',
+		 'France is a <extra_id_0> of the world.']
 
 # sent = 'China is a <extra_id_0> of the world. </s>'
 
 for sent in sents:
+	sent = prepare_string_for_T5Tokenizer(sent)
 	encoded = mt5_tokenizer.encode_plus(sent, add_special_tokens=True, return_tensors='pt')
 	input_ids = encoded['input_ids']
 

@@ -16,4 +16,4 @@ device_name=$7
 debug=$8
 
 pwd
-python -u qaeval_chinese_scratch.py --eval_set "$eval_set" --version "$version" --eval_mode boolean --eval_method "$eval_method" --eg_root ../gfiles --eg_name "$eg_name" --eg_suff "$eg_suff" --eg_feat_idx "$eg_feat_idx" --max_spansize 100 --backupAvg --device_name "$device_name" --tfidf_path /home/s2063487/DrQA/scripts/retriever/clue_doc_db-tfidf-ngram=2-hash=16777216-tokenizer=spacy-chinese.npz --articleIds_dict_path /home/s2063487/DrQA/scripts/retriever/articleIds_by_partition.json --num_refs_bert1 5 ${debug}
+python -u qaeval_chinese_scripts.py --eval_set "$eval_set" --version "$version" --eval_mode boolean --eval_method "$eval_method" --eg_root ../gfiles --eg_name "$eg_name" --eg_suff "$eg_suff" --eg_feat_idx "$eg_feat_idx" --max_spansize 100 --backupAvg --device_name "$device_name" --tfidf_path /home/s2063487/DrQA/scripts/retriever/clue_doc_db-tfidf-ngram=2-hash=16777216-tokenizer=spacy-chinese.npz --articleIds_dict_path /home/s2063487/DrQA/scripts/retriever/articleIds_by_partition.json --num_refs_bert1 5 ${debug}
