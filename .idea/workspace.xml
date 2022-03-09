@@ -2,24 +2,7 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="3a9bde72-afa7-4492-ba11-b9d86699c11e" name="Default" comment="stable commit 0122">
-      <change afterPath="$PROJECT_DIR$/evaluation/eval_merge_backoff_SS.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/evaluation/qaeval_wh_negi_masking.sh" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/gfiles/results/extract_dir_results.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/gfiles/results/extract_sym_results.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/gfiles/results/get_SS_style_auc.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/constants/flags.py" beforeDir="false" afterPath="$PROJECT_DIR$/constants/flags.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/evaluation/eval.py" beforeDir="false" afterPath="$PROJECT_DIR$/evaluation/eval.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/evaluation/mT5_sanity_check.py" beforeDir="false" afterPath="$PROJECT_DIR$/evaluation/mT5_sanity_check.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/evaluation/qaeval_chinese_boolean_functions.py" beforeDir="false" afterPath="$PROJECT_DIR$/evaluation/qaeval_chinese_boolean_functions.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/evaluation/qaeval_chinese_general_functions.py" beforeDir="false" afterPath="$PROJECT_DIR$/evaluation/qaeval_chinese_general_functions.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/evaluation/qaeval_chinese_scripts.py" beforeDir="false" afterPath="$PROJECT_DIR$/evaluation/qaeval_chinese_scripts.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/evaluation/qaeval_chinese_wh_functions.py" beforeDir="false" afterPath="$PROJECT_DIR$/evaluation/qaeval_chinese_wh_functions.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/evaluation/qaeval_wh.sh" beforeDir="false" afterPath="$PROJECT_DIR$/evaluation/qaeval_wh.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/evaluation/util.py" beforeDir="false" afterPath="$PROJECT_DIR$/evaluation/util.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/gfiles/plotting_merged.py" beforeDir="false" afterPath="$PROJECT_DIR$/gfiles/plotting_merged.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/graph/graph.py" beforeDir="false" afterPath="$PROJECT_DIR$/graph/graph.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lemma_baseline/baseline.py" beforeDir="false" afterPath="$PROJECT_DIR$/lemma_baseline/baseline.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -1833,7 +1816,6 @@
       <item itemvalue="Python.eval chinese orig test exhaust apooling 33" />
       <item itemvalue="Python.eval chinese orig test exhaust apooling G " />
       <item itemvalue="Python.eval chinese orig test" />
-      <item itemvalue="Python.eval chinese" />
       <item itemvalue="Python.eval english NW" />
       <item itemvalue="Python.eval english dev back-translated" />
       <item itemvalue="Python.eval english dev binc local lh" />
@@ -1854,9 +1836,9 @@
       <item itemvalue="Python.eval_merge_backoff_SS binc global" />
       <item itemvalue="Python.eval_merge_backoff_SS binc local sherliic" />
       <item itemvalue="Python.eval_merge_backoff_SS binc local" />
-      <item itemvalue="Python.eval_merge_backoff_SS weeds local dir" />
-      <item itemvalue="Python.eval_merge_backoff_SS weeds local" />
       <item itemvalue="Python.eval_merge_backoff_SS weeds sherliic" />
+      <item itemvalue="Python.eval_merge_backoff_SS weeds local" />
+      <item itemvalue="Python.eval_merge_backoff_SS weeds local dir" />
       <item itemvalue="Python.eval_merged dev 1820" />
       <item itemvalue="Python.eval_merged dev NW+WN" />
       <item itemvalue="Python.eval_merged dev ++" />
@@ -1894,6 +1876,7 @@
       <item itemvalue="Python.remove_spaces" />
       <item itemvalue="Python.soft_krackhardt_score" />
       <item itemvalue="Python.temp" />
+      <item itemvalue="Python.eval chinese" />
     </list>
     <recent_temporary>
       <list>
@@ -1968,7 +1951,14 @@
       <option name="project" value="LOCAL" />
       <updated>1642877273105</updated>
     </task>
-    <option name="localTasksCounter" value="9" />
+    <task id="LOCAL-00009" summary="stable commit 0122">
+      <created>1646835558144</created>
+      <option name="number" value="00009" />
+      <option name="presentableId" value="LOCAL-00009" />
+      <option name="project" value="LOCAL" />
+      <updated>1646835558144</updated>
+    </task>
+    <option name="localTasksCounter" value="10" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
@@ -1996,10 +1986,11 @@
       <screen x="1792" y="-80" width="1920" height="1200" />
     </state>
     <state x="2434" y="81" key="#soft_krackhardt_score/1792.-80.1920.1200/0.0.1792.1120@1792.-80.1920.1200" timestamp="1638813195408" />
-    <state x="2280" y="52" key="CommitChangelistDialog2" timestamp="1642877272955">
-      <screen x="1792" y="-80" width="1920" height="1200" />
+    <state x="455" y="123" key="CommitChangelistDialog2" timestamp="1646835558018">
+      <screen x="0" y="0" width="1792" height="1120" />
     </state>
     <state x="2443" y="-437" key="CommitChangelistDialog2/0.0.1792.1120/1792.-595.2560.1440@1792.-595.2560.1440" timestamp="1639865502849" />
+    <state x="455" y="123" key="CommitChangelistDialog2/1792.-322.1920.1200/0.0.1792.1120@0.0.1792.1120" timestamp="1646835558018" />
     <state x="2280" y="52" key="CommitChangelistDialog2/1792.-80.1920.1200/0.0.1792.1120@1792.-80.1920.1200" timestamp="1642877272955" />
     <state width="1894" height="47" key="GridCell.Tab.0.bottom" timestamp="1646785924447">
       <screen x="1792" y="-595" width="2560" height="1440" />
@@ -2133,6 +2124,15 @@
     <state width="1894" height="358" key="GridCell.Tab.1.right/1792.-80.1920.1200/0.0.1792.1120@1792.-80.1920.1200" timestamp="1643049285109" />
     <state width="1894" height="459" key="GridCell.Tab.1.right/1792.-80.1920.1200/0.25.1792.1014@1792.-80.1920.1200" timestamp="1642515709194" />
     <state width="1894" height="358" key="GridCell.Tab.1.right/1792.-80.1920.1200/0.25.1792.1015@1792.-80.1920.1200" timestamp="1643049056978" />
+    <state x="546" y="212" key="MultipleFileMergeDialog" timestamp="1646835738691">
+      <screen x="0" y="0" width="1792" height="1120" />
+    </state>
+    <state x="546" y="212" key="MultipleFileMergeDialog/1792.-322.1920.1200/0.0.1792.1120@0.0.1792.1120" timestamp="1646835738691" />
+    <state x="396" y="234" key="Vcs.Push.Dialog.v2" timestamp="1646835679990">
+      <screen x="0" y="0" width="1792" height="1120" />
+    </state>
+    <state x="396" y="234" key="Vcs.Push.Dialog.v2/1792.-297.1920.1175/0.0.1792.1120@0.0.1792.1120" timestamp="1646835679990" />
+    <state x="396" y="234" key="Vcs.Push.Dialog.v2/1792.-322.1920.1200/0.0.1792.1120@0.0.1792.1120" timestamp="1646835563227" />
     <state width="960" height="600" key="XDebugger.FullValuePopup" timestamp="1645127346657">
       <screen x="1792" y="-322" width="1920" height="1200" />
     </state>
@@ -2153,6 +2153,10 @@
       <screen x="1792" y="-595" width="2560" height="1440" />
     </state>
     <state x="2673" y="-337" width="797" height="924" key="find.popup/0.0.1792.1120/1792.-595.2560.1440@1792.-595.2560.1440" timestamp="1640816057705" />
+    <state x="578" y="312" key="git4idea.merge.GitPullDialog" timestamp="1646835729793">
+      <screen x="0" y="0" width="1792" height="1120" />
+    </state>
+    <state x="578" y="312" key="git4idea.merge.GitPullDialog/1792.-322.1920.1200/0.0.1792.1120@0.0.1792.1120" timestamp="1646835729793" />
     <state x="2438" y="190" width="838" height="860" key="search.everywhere.popup" timestamp="1641922483428">
       <screen x="1792" y="-80" width="1920" height="1200" />
     </state>
