@@ -1,6 +1,7 @@
 import transformers
 from transformers import T5Tokenizer, MT5ForConditionalGeneration
 from qaeval_chinese_general_functions import prepare_string_for_T5Tokenizer
+import torch
 
 mt5_tokenizer = T5Tokenizer.from_pretrained('google/mt5-small')
 mt5_model = MT5ForConditionalGeneration.from_pretrained('google/mt5-small')
@@ -26,14 +27,18 @@ for sent in sents:
 	encoded = mt5_tokenizer.encode_plus(sent, add_special_tokens=True, return_tensors='pt')
 	input_ids = encoded['input_ids']
 
-	outputs = mt5_model.generate(input_ids=input_ids, num_beams=200, num_return_sequences=50, max_length=10)
-
+	outputs = mt5_model.generate(input_ids=input_ids, num_beams=200, num_return_sequences=50, max_length=10,
+								 return_dict_in_generate=True, output_scores=True)
+	print(outputs.sequences.shape)
+	print(outputs.sequences_scores.shape)
 	_0_index = sent.index('<extra_id_0>')
 	_result_prefix = sent[:_0_index]
 	_result_suffix = sent[_0_index+12:]  # 12 is the length of <extra_id_0>
 
 	end_token = '<extra_id_1>'
-	for op in outputs[:10]:
+	exp_sequences_scores = torch.exp(outputs.sequences_scores)
+	assert outputs.sequences.shape[0] == exp_sequences_scores.shape[0]
+	for op, op_scr in zip(outputs.sequences[:10], exp_sequences_scores[:10]):
 		result = mt5_tokenizer.decode(op[2:], skip_special_tokens=False, clean_up_tokenization_spaces=False)
 
 		if end_token in result:
@@ -41,5 +46,5 @@ for sent in sents:
 			result = result[:_end_token_idx]
 		else:
 			pass
-		print(_result_prefix+'【'+result+'】'+_result_suffix)
+		print(_result_prefix+'【'+result+'】'+_result_suffix+f";\tscore: {op_scr}")
 	print("")

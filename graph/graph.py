@@ -158,7 +158,7 @@ class Graph:
 
             else:
                 if self.args.CCG and isConj:
-                    # print "isConj"
+                    # print("isConj")
                     continue
                 if "num neighbors" in line:  # such as "num neighbors: 22"
                     continue

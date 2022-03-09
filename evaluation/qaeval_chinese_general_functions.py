@@ -6,6 +6,7 @@ import random
 import transformers
 random.seed()
 import numpy as np
+import torch
 
 from qaeval_utils import DateManager, parse_rel, calc_simscore, duration_format_print
 
@@ -116,21 +117,40 @@ def mask_entities_for_entries(args):
 
 
 def mask_negi_entities_for_entries(args):
-	data_entries = load_data_entries(args.fpath, posi_only=True)
+	data_entries = load_data_entries(args.fpath, negi_only=True)
 
-	out_fp = open(args.wh_fpath, 'w', encoding='utf8')
+	posi_data_entries = load_data_entries(args.wh_fpath, posi_only=True)
+
+	# There may be entries with the same in_partition_sidx but in different partitions mixed together, but this is okay
+	# as long as we check for partition key when looking for the corresponding positives for each negative.
+	# The purpose of this bucket is to let each negative be mapped to its corresponding positive, so that the argument
+	# masked in each negative is the same argument as its corresponding positive: in this way the confidence values of
+	# the masked value would be directly comparable.
+	posi_entries_by_sidx = {}
+	for ent in posi_data_entries:
+		if ent['in_partition_sidx'] not in posi_entries_by_sidx:
+			posi_entries_by_sidx[ent['in_partition_sidx']] = []
+		posi_entries_by_sidx[ent['in_partition_sidx']].append(ent)
+
+	out_fp = open(args.negi_fpath, 'w', encoding='utf8')
 
 	for ent in data_entries:
-
 		upred, subj, obj, tsubj, tobj = parse_rel(ent)
+
 		arg2mask = None
-		if args.mask_only_objs:
-			arg2mask = 'obj'
-		else:
-			if random.random() > 0.5:
-				arg2mask = 'subj'
-			else:
-				arg2mask = 'obj'
+		for posi_ent in posi_entries_by_sidx[ent['in_partition_sidx']]:
+			if posi_ent['partition_key'] != ent['partition_key']:
+				continue
+			posi_upred, posi_subj, posi_obj, posi_tsubj, posi_tobj = parse_rel(posi_ent)
+			if posi_upred == ent['posi_upred'] and posi_subj == subj and posi_obj == obj:
+				assert arg2mask is None
+				if posi_ent['index_position'] == 'subj':
+					arg2mask = 'obj'
+				elif posi_ent['index_position'] == 'obj':
+					arg2mask = 'subj'
+				else:
+					raise AssertionError
+		assert arg2mask is not None
 
 		if arg2mask == 'subj':
 			ent['answer'] = subj
@@ -155,6 +175,7 @@ def mask_negi_entities_for_entries(args):
 
 def find_all_matches_in_string(string, pattern):
 	if len(pattern) == 0:
+		print(f"Pattern with zero length!")
 		return []
 	id_list = []
 	offset = 0
@@ -462,11 +483,14 @@ def in_context_prediction_bert(query_ent, ref_rels, ref_sents, method, max_spans
 
 	query_toks = bert_tokenizer.encode_plus(concat_sent, add_special_tokens=True, return_tensors='pt')
 	input_ids = query_toks['input_ids'].to(bert_device)
-	query_outputs = bert_model.generate(input_ids=input_ids, num_beams=200, num_return_sequences=50, max_length=20)
+	query_outputs = bert_model.generate(input_ids=input_ids, num_beams=200, num_return_sequences=50, max_length=20,
+										return_dict_in_generate=True, output_scores=True)
+	exp_sequences_scores = torch.exp(query_outputs.sequences_scores)
 
 	end_tokens = ['</s>', '<extra_id_1>']
 	return_values = {}
-	for aidx, ans in enumerate(query_outputs):
+	assert query_outputs.sequences.shape[0] == exp_sequences_scores.shape[0]
+	for aidx, (ans, ans_scr) in enumerate(zip(query_outputs.sequences, exp_sequences_scores)):
 		ans = bert_tokenizer.decode(ans[2:], skip_special_tokens=False, clean_up_tokenization_spaces=False)
 		# enumerate all end_tokens, chunk the answer with the shortest one.
 		for end_token in end_tokens:
@@ -478,8 +502,9 @@ def in_context_prediction_bert(query_ent, ref_rels, ref_sents, method, max_spans
 		ans = ans.replace(' ', '')
 		if ans not in return_values:
 			return_values[ans] = 0
-		if return_values[ans] < 1/(float(aidx)+1):
-			return_values[ans] = 1/(float(aidx)+1)
+		if return_values[ans] < ans_scr:
+			assert return_values[ans] == 0
+			return_values[ans] = ans_scr
 
 	return return_values
 

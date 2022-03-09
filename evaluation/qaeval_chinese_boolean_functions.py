@@ -310,8 +310,8 @@ def qa_eval_boolean_main(args, date_slices):
 		num_type_pairs_processed = 0
 		num_type_pairs_processed_reported_flag = False
 
-		loaded_data_refs_by_partition = None if args.no_cache else {}
-		loaded_ref_triples_by_partition = None if args.no_cache else {}
+		loaded_data_refs_by_partition = None if args.no_ref_cache else {}
+		loaded_ref_triples_by_partition = None if args.no_triple_cache else {}
 
 		for f in files:
 			if num_type_pairs_processed % 50 == 1 and not num_type_pairs_processed_reported_flag:

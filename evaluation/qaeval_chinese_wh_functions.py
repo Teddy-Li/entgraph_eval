@@ -12,8 +12,13 @@ import json
 import torch
 import transformers
 import time
+import copy
+import statistics
 import psutil
 from drqa.retriever.tfidf_doc_ranker import TfidfDocRanker
+
+import evaluation.util_chinese
+from sklearn.metrics import precision_recall_curve
 
 
 def qa_eval_wh_all_partitions(args, date_slices, data_entries, entry_restricted_tscores, entry_free_tscores=None,
@@ -31,8 +36,9 @@ def qa_eval_wh_all_partitions(args, date_slices, data_entries, entry_restricted_
 				bert_tokenizer = transformers.T5Tokenizer.from_pretrained(args.mt5_dir)
 				bert_model = transformers.MT5ForConditionalGeneration.from_pretrained(args.mt5_dir)
 				if torch.cuda.is_available():
-					device_map = {0: [0, 1, 2],
-								  1: [3, 4, 5, 6, 7]}
+					device_map = {0: [0],
+								  1: [1, 2, 3, 4],
+								  2: [5, 6, 7]}
 					bert_model.parallelize(device_map)
 				# in this case, args.device is the first device, the one hosting the embeddings
 				args.device = torch.device(args.device_name) if torch.cuda.is_available() else torch.device('cpu')
@@ -96,6 +102,7 @@ def qa_eval_wh_all_partitions(args, date_slices, data_entries, entry_restricted_
 
 		st_loadtriples = time.time()
 		if load_triples_flag:
+			print("loading triples!")
 			partition_triples_in_sents = loaded_ref_triples_by_partition[partition_key]
 		else:
 			with open(partition_triple_path, 'r', encoding='utf8') as fp:
@@ -156,6 +163,7 @@ def qa_eval_wh_all_partitions(args, date_slices, data_entries, entry_restricted_
 
 		if args.eval_method not in ['bert1A', 'bert1B']:
 			if load_data_refs_flag is True:
+				print("loading data refs!")
 				assert len(loaded_data_refs_by_partition[partition_key]) == len(cur_partition_data_refs)
 				cur_partition_data_refs = loaded_data_refs_by_partition[partition_key]
 			else:
@@ -423,28 +431,122 @@ def wh_final_evaluation(args, data_entries, entry_tscores, entry_avg_ftscores=No
 	else:
 		raise AssertionError
 
-	with open(args.wh_predictions_path % method_ident_str, 'w', encoding='utf8') as fp:
+	with open(args.wh_predictions_path % (method_ident_str, args.wh_label), 'w', encoding='utf8') as fp:
 		for s, l in zip(final_scores, final_labels):
 			out_item = {'answer': l, 'scores': s}
 			out_line = json.dumps(out_item, ensure_ascii=False)
 			fp.write(out_line+'\n')
 
-	with open(args.wh_results_path % method_ident_str, 'w', encoding='utf8') as fp:
+	with open(args.wh_results_path % (method_ident_str, args.wh_label), 'w', encoding='utf8') as fp:
 		fp.write(f"MRR: {mrr}\n")
 		for X in hit_at_X:
 			fp.write(f"Hit @ {X}: {hit_at_X[X]}\n")
 
 	if write_individual_preds is True:
-		with open(args.wh_predictions_path % (method_ident_str+'_individuals'), 'w', encoding='utf8') as fp:
-			for rtscr, ftscr, uscr in zip(entry_tscores, entry_avg_ftscores, entry_avg_uscores):
-				out_item = {'rtscr': rtscr, 'ftscr': ftscr, 'uscr': uscr}
+		with open(args.wh_predictions_path % (method_ident_str+'_individuals', args.wh_label), 'w', encoding='utf8') as fp:
+			for rtscr, ftscr, uscr, l in zip(entry_tscores, entry_avg_ftscores, entry_avg_uscores, final_labels):
+				out_item = {'label': l, 'rtscr': rtscr, 'ftscr': ftscr, 'uscr': uscr}
 				out_line = json.dumps(out_item, ensure_ascii=False)
 				fp.write(out_line+'\n')
 
 
-def qa_eval_wh_main(args, date_slices):
-	data_entries = load_data_entries(args.wh_fpath, posi_only=True)
+def wh_pr_rec_evaluation(args):
 
+	def add_results_to_entry(ent, res):
+		assert isinstance(ent, dict)
+		assert ent['answer'] == res['label']
+		ent['predictions'] = copy.deepcopy(res)
+		final_scr = wh_max_of_weighted(args, res['rtscr'], res['ftscr'], res['uscr'])
+		ent['answer_confidence'] = final_scr[ent['answer']] if ent['answer'] in final_scr else 0.0
+
+	assert args.wh_label == 'both'
+	posi_data_entries = load_data_entries(args.wh_fpath, posi_only=True)
+	negi_data_entries = load_data_entries(args.negi_fpath, posi_only=True)
+
+	if args.eval_method in ['bert1A', 'bert2A', 'bert3A', 'bert1B', 'bert2B', 'bert3B']:
+		method_ident_str = args.eval_method
+	elif args.eval_method in ['eg']:
+		method_ident_str = '_'.join([args.eval_method, os.path.split(args.eg_name)[-1], args.eg_suff])
+	else:
+		raise AssertionError
+
+	posi_results = []
+	negi_results = []
+	with open(args.wh_predictions_path % (method_ident_str+'_individuals', 'positive'), 'r', encoding='utf8') as fp:
+		for line in fp:
+			item = json.loads(line)
+			posi_results.append(item)
+	with open(args.wh_predictions_path % (method_ident_str+'_individuals', 'negative'), 'r', encoding='utf8') as fp:
+		for line in fp:
+			item = json.loads(line)
+			negi_results.append(item)
+
+	assert len(posi_data_entries) == len(posi_results)
+	assert len(negi_data_entries) == len(negi_results)
+
+	for i in range(len(posi_data_entries)):
+		add_results_to_entry(posi_data_entries[i], posi_results[i])
+	for i in range(len(negi_data_entries)):
+		add_results_to_entry(negi_data_entries[i], negi_results[i])
+
+	total_labels = [1 for x in posi_data_entries] + [0 for x in negi_data_entries]
+	total_answer_confidence = [ent['answer_confidence'] for ent in posi_data_entries] + [ent['answer_confidence'] for ent in negi_data_entries]
+
+	prec, rec, thres = precision_recall_curve(total_labels, total_answer_confidence)
+	assert len(prec) == len(rec) and len(prec) == len(thres) + 1
+	auc_value = evaluation.util_chinese.get_auc(prec[1:], rec[1:])
+	print(f"Area under curve: {auc_value};")
+
+	posi_entries_by_sidx = {}
+	for ent in posi_data_entries:
+		if ent['in_partition_sidx'] not in posi_entries_by_sidx:
+			posi_entries_by_sidx[ent['in_partition_sidx']] = []
+		posi_entries_by_sidx[ent['in_partition_sidx']].append(ent)
+
+	posi_negi_diffs = []  # this should finally be of the same length as the negative samples
+	posi_abs_confidences = []  # this should also be of the same length as the negative samples.
+	negi_abs_confidences = []  # this should also be of the same length as the negative samples.
+
+	for negi_ent in negi_data_entries:
+		posi_ent = None
+		for pot_posi_ent in posi_entries_by_sidx[negi_ent['in_partition_sidx']]:
+			if pot_posi_ent['partition_key'] == negi_ent['partition_key']:
+				assert posi_ent is None
+				posi_ent = pot_posi_ent
+		assert posi_ent is not None
+
+		cur_posi_negi_diff = posi_ent['answer_confidence'] - negi_ent['answer_confidence']
+		cur_posi_abs_confidence = posi_ent['answer_confidence']
+		cur_negi_abs_confidence = negi_ent['answer_confidence']
+
+		posi_negi_diffs.append(cur_posi_negi_diff)
+		posi_abs_confidences.append(cur_posi_abs_confidence)
+		negi_abs_confidences.append(cur_negi_abs_confidence)
+
+	mean_posi_negi_diff = statistics.mean(posi_negi_diffs)
+	mean_posi_abs_confidence = statistics.mean(posi_abs_confidences)
+	mean_negi_abs_confidence = statistics.mean(negi_abs_confidences)
+
+	print(f"mean posi-negi difference: {mean_posi_negi_diff};")
+	print(f"mean diff/posi: {mean_posi_negi_diff / mean_posi_abs_confidence}")
+	print(f"mean diff/negi: {mean_posi_negi_diff / mean_negi_abs_confidence}")
+
+
+def qa_eval_wh_main(args, date_slices):
+	if args.wh_label == 'positive':
+		data_entries = load_data_entries(args.wh_fpath, posi_only=True)
+	elif args.wh_label == 'negative':
+		data_entries = load_data_entries(args.negi_fpath, negi_only=True)
+	else:
+		raise AssertionError
+
+	do_write_individual_preds = (not args.no_write_individual_preds)
+	if do_write_individual_preds:
+		print(f"Will write individual prediction scores!")
+	else:
+		print(f"Will NOT write individual prediction scores!")
+
+	assert len(data_entries) > 0
 	entry_restricted_tscores = [None for x in range(len(data_entries))]  # tscores where the type of the blank is restricted;
 	entry_free_tscores = [{} for x in range(len(data_entries))]  # tscores where the type of the blank is free;
 	# formal equation for uscore: avg_{type}(max_{p \in V(type)}(EntScore_{type}(p->q)))
@@ -466,8 +568,8 @@ def qa_eval_wh_main(args, date_slices):
 		num_type_pairs_processed = 0
 		num_type_pairs_processed_reported_flag = False
 
-		loaded_data_refs_by_partition = None if args.no_cache else {}
-		loaded_ref_triples_by_partition = None if args.no_cache else {}
+		loaded_data_refs_by_partition = None if args.no_ref_cache else {}
+		loaded_ref_triples_by_partition = None if args.no_triple_cache else {}
 
 		for f in files:
 			if num_type_pairs_processed % 50 == 1 and not num_type_pairs_processed_reported_flag:
@@ -541,4 +643,4 @@ def qa_eval_wh_main(args, date_slices):
 	assert len(entry_restricted_tscores) == len(entry_avg_free_tscores)
 
 	wh_final_evaluation(args, data_entries, entry_restricted_tscores, entry_avg_free_tscores, entry_avg_uscores,
-						write_individual_preds=True)
+						write_individual_preds=do_write_individual_preds)

@@ -182,11 +182,25 @@ def main():
 		input_list.append(['./qaeval_results/15_30_triple_doc_disjoint_40000_2_lexic_wordnet_test/eg_typedEntGrDir_Chinese_BSL2_2__binc_1_1e-4_1e-2.txt_prt_vals.tsv', '$DDPORE$; AUC: 41.7'])
 		input_list.append(['./qaeval_results/15_30_triple_doc_disjoint_40000_2_lexic_wordnet_test/eg_typedEntGrDir_Chinese2_2__binc_1_1e-4_1e-2.txt_prt_vals.tsv',
 							  '$EG_{Zh}$;\tAUC: 59.0'])
+	elif args.mode == 'dir':
+		input_list.append(['/Users/teddy/Downloads/endir_levyholt_63/en_levyholt_dir_test_pr_rec.txt', 'S&S - dir LevyHolt'])
+		input_list.append(['/Users/teddy/Downloads/levyholt_en_dirp_29/en_levyholt_dir_test_pr_rec.txt', 'S&S - LevyHolt'])
+		input_list.append(['/Users/teddy/Downloads/egen_ns_weeds_l_egdev_18k_28/en_levyholt_dir_test_pr_rec.txt', 'S&S - Weeds Local'])
+		input_list.append(['/Users/teddy/Downloads/egen_ns_weeds_ldir_egdev_18k_97/en_levyholt_dir_test_pr_rec.txt', 'S&S - Weeds Local Directional'])
+		input_list.append(['/Users/teddy/Downloads/egen_ns_binc_g_egdev_18k_73/en_levyholt_dir_test_pr_rec.txt', 'S&S - BInc Global'])
+		input_list.append(['/Users/teddy/Downloads/egen_ns_binc_l_egdev_18k_58/en_levyholt_dir_test_pr_rec.txt', 'S&S - BInc Local'])
+		input_list.append(['/Users/teddy/Downloads/egen_sabine_egdev_18k_73/en_levyholt_dir_test_pr_rec.txt', 'S&S - Sabine'])
+		input_list.append(['/Users/teddy/eclipse-workspace/entgraph_eval/gfiles/results_en/pr_rec/local_weeds_test_dir.txt', 'EG - Weeds Local'])
+		input_list.append(['/Users/teddy/eclipse-workspace/entgraph_eval/gfiles/results_en/pr_rec/local_binc_test_dir.txt', 'EG - BInc Local'])
+		input_list.append(['/Users/teddy/eclipse-workspace/entgraph_eval/gfiles/results_en/pr_rec/global_binc_test_dir.txt', 'EG - BInc Global'])
 	else:
 		raise AssertionError
 
 	for ifn, label in input_list:
 		plot_from_file(ifn, label, args.only_highprec, args.truncate_lowrec)
+
+	if args.mode == 'dir':
+		plt.scatter(0.8296, 0.6341, s=1000, marker='*',)
 	plt.xlabel('recall')
 	plt.ylabel('precision')
 	plt.title("Precision Recall Curves")

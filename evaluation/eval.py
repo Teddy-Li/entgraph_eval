@@ -14,6 +14,7 @@ from sklearn.metrics import precision_recall_curve
 from sklearn import metrics
 from constants.flags import opts
 from ppdb import predict
+import json
 
 np.set_printoptions(threshold=sys.maxsize)
 np.set_printoptions(linewidth=np.nan)
@@ -670,6 +671,24 @@ def fit_predict(data_list, predPairFeats,predPairFeatsTyped,predPairConnectedLis
 
     X_dev_typed = get_typed_feats(data_dev,predPairFeatsTyped)
 
+    dev_nodesInGraph = []
+
+    for (p,q,t1s,t2s,probs,a,l) in data_dev:
+        assert len(t1s) == len(t2s)
+        em_found = False
+        for t_i in range(len(t1s)):
+            if (p+"#"+q+"#"+str(a)+"#"+t1s[t_i]+"#"+t2s[t_i]) in predPairTypedExactFound:
+                em_found = True
+                break
+        if em_found:
+            dev_nodesInGraph.append(1)
+        else:
+            dev_nodesInGraph.append(0)
+    assert len(dev_nodesInGraph) == len(data_dev)
+    print(f"Total number of entries where both nodes are found in the graph: {sum(dev_nodesInGraph)};")
+    with open(os.path.join(root, out_dir, args.method+'_exact_found_labels.txt'), 'w', encoding='utf8') as exact_fount_ofp:
+        json.dump(dev_nodesInGraph, exact_fount_ofp, ensure_ascii=False, indent=4)
+
     if not args.useSims:
         X_dev = [x[0:len(X_dev[0])//2] for x in X_dev]#only the first half! The second half is based on those similarities.
         # The remaining first half can again be split in two, the first half of the first half is the original score, the second of the first half is the reciprocal ranking score.
@@ -723,8 +742,7 @@ def fit_predict(data_list, predPairFeats,predPairFeatsTyped,predPairConnectedLis
 
                     Y_dev_pred = Y_dev_pred2
 
-            if debug:
-                print ("nnz Y_dev_pred: ", np.count_nonzero(Y_dev_pred))
+            print("nnz Y_dev_pred: ", np.count_nonzero(Y_dev_pred))
 
         elif args.wAvgFeats:
 
@@ -1320,12 +1338,12 @@ elif args.berDS_v3:
     orig_fnames = [root + "ent/all_comb.txt", root + "ent/ber_all.txt"]
 
 elif args.dev_sherliic_v2:
-    fnames_CCG = [root + "ent/all_comb_rels_v2.txt", root + "ent/dev_sherliic_rels_v2.txt"]
-    orig_fnames = [root + "ent/all_comb.txt", root + "ent/dev_sherliic.txt"]
+    fnames_CCG = [None, root + "ent/dev_sherliic_rels_v2.txt"]
+    orig_fnames = [None, root + "ent/dev_sherliic.txt"]
 
 elif args.test_sherliic_v2:
-    fnames_CCG = [root + "ent/all_comb_rels_v2.txt", root + "ent/test_sherliic_rels_v2.txt"]
-    orig_fnames = [root + "ent/all_comb.txt", root + "ent/test_sherliic.txt"]
+    fnames_CCG = [None, root + "ent/test_sherliic_rels_v2.txt"]
+    orig_fnames = [None, root + "ent/test_sherliic.txt"]
 
 elif args.snli:
     # fnames_CCG = [root + "ent/msnli_rels2.txt", root + "ent/msnli_rels2.txt"]
@@ -1413,7 +1431,7 @@ else:
 CCG = args.CCG
 typed = args.typed
 supervised = args.supervised
-oneFeat = args.oneFeat#as opposed to average features!
+oneFeat = args.oneFeat  # as opposed to average features!
 gpath = args.gpath
 method = args.method
 useSims = args.useSims

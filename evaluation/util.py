@@ -60,6 +60,9 @@ def read_data_plain(orig_dpath):
 
 
 def read_data(dpath, orig_dpath,CCG,typed,LDA):
+    if dpath is None:  # added by Teddy
+        return []
+
     f = open(dpath, encoding='utf8')
 
     if orig_dpath:

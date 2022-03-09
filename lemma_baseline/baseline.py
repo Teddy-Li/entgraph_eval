@@ -77,7 +77,7 @@ class Baseline:
 class Baseline_sherliic:
 
     def __init__(self):
-        self.sherliic_root = "../../gfiles/ent/sherliic/"
+        self.sherliic_root = "../gfiles/ent/sherliic/"
         self.relation_index_path = self.sherliic_root + "relation_index.tsv"
         self.stop_words = stopwords.words('english')
         self.relation_index = self.load_relation_index(self.relation_index_path)

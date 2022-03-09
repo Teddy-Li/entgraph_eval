@@ -69,13 +69,16 @@ if __name__ == '__main__':
 	parser.add_argument('--assert_indexarg_type', action='store_true',
 						help='flag controlling whether the type of the index argument in context triples should be '
 							 'asserted to remain the same as in the query triple.')
-	parser.add_argument('--wh_predictions_fn', type=str, default='%s_wh_predictions.txt')
-	parser.add_argument('--wh_results_fn', type=str, default='%s_wh_evalresults.txt')
+	parser.add_argument('--wh_predictions_fn', type=str, default='%s_wh_%s_predictions.txt')
+	parser.add_argument('--wh_results_fn', type=str, default='%s_wh_%s_evalresults.txt')
 	parser.add_argument('--max_t5_seq_length', type=int, default=600,
 						help='maximum sequence length for the B type BERT baselines: the maximum length of the concatenated '
 							 'context sentences with the appended query.')
+	parser.add_argument('--wh_label', type=str, default='positive', help='')
 
-	parser.add_argument('--no_cache', action='store_true')
+	parser.add_argument('--no_triple_cache', action='store_true')
+	parser.add_argument('--no_ref_cache', action='store_true')
+	parser.add_argument('--no_write_individual_preds', action='store_true')
 
 	# flags below are for the TF-IDF ranker.
 	parser.add_argument('--tfidf_path', type=str,
@@ -94,8 +97,9 @@ if __name__ == '__main__':
 	args.CCG = True
 	assert args.eval_set in ['dev', 'test']
 	assert args.slicing_method in ['disjoint', 'sliding']
-	assert args.eval_mode in ['boolean', 'wh', 'wh_masking']
+	assert args.eval_mode in ['boolean', 'wh', 'wh_masking', 'negi_masking']
 	assert args.eval_method in ['bert1A', 'bert2A', 'bert3A', 'bert1B', 'bert2B', 'bert3B', 'eg']
+	assert args.wh_label in ['positive', 'negative', 'both']
 
 	args.fpath = args.fpath_base % (args.version, args.eval_set)
 	args.wh_fpath = args.wh_fpath_base % (args.version, args.eval_set)
