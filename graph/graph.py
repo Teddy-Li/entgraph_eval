@@ -10,6 +10,7 @@ class Graph:
     num_feats = -1
     zeroFeats = None
     certainFeats = None
+    certainFeats = None
     num_edges = 0
     num_edges_threshold = 0#cos >1e-4
     threshold = -1
@@ -32,7 +33,7 @@ class Graph:
 
     def set_num_feats(self,gpath):
         #get the first pred
-        f = open(gpath, encoding='utf-8')
+        f = open(gpath, encoding='utf-8', encoding='utf-8')
         if debug:
             print ("gpath: ", gpath)
 
@@ -51,6 +52,8 @@ class Graph:
                     Graph.zeroFeats = np.zeros(shape=Graph.num_feats)
                     Graph.certainFeats = np.repeat(0.99902344, Graph.num_feats)
                     Graph.certainFeats = np.around(Graph.certainFeats, decimals=4)
+                    Graph.certainFeats = np.repeat(0.99902344, Graph.num_feats)
+                    Graph.certainFeats = np.around(Graph.certainFeats, decimals=4)
                     break
             if line.endswith("sims") or line.endswith("sim"):
                 num_feats += 1
@@ -63,7 +66,7 @@ class Graph:
             self.set_num_feats(gpath)
         if self.args and self.args.threshold:
             Graph.threshold = self.args.threshold
-        f = open(gpath, encoding='utf-8')
+        f = open(gpath, encoding='utf-8', encoding='utf-8')
         Graph.featIdx = 0 if self.args and self.args.saveMemory else Graph.featIdx
         self.pred2Node = {}#This should be mainly because we read from file, in other inits, we don't need it!
         self.idx2Node = {}
@@ -116,7 +119,7 @@ class Graph:
                 print ("all size: ", allSize)
 
             lIdx += 1
-            if first:  # such as: types: art#art, num preds: 129
+            if first:  # such as: types: art#art, num preds: 129  # such as: types: art#art, num preds: 129
                 self.name = line
                 self.types = line.split(",")[0].split(" ")[1].split("#")
                 if len(self.types) < 2:
@@ -132,7 +135,7 @@ class Graph:
             elif line == "":
                 continue
 
-            elif line.startswith("predicate:"):  # such as: "predicate: (成为.1, 成为.2)#art_1#art_2"
+            elif line.startswith("predicate:"):  # such as: "predicate: (成为.1, 成为.2)#art_1#art_2"  # such as: "predicate: (成为.1, 成为.2)#art_1#art_2"
                 #time to read a predicate
                 pred = line[11:]
                 if self.args.CCG and Graph.is_conjunction(pred):
@@ -160,18 +163,18 @@ class Graph:
                 if self.args.CCG and isConj:
                     # print "isConj"
                     continue
-                if "num neighbors" in line:  # such as "num neighbors: 22"
+                if "num neighbors" in line:  # such as "num neighbors: 22"  # such as "num neighbors: 22"
                     continue
                 #This means we have #cos sim, etc
                 if line.endswith("sims") or line.endswith("sim"):
-                    order = 0  # number of out edges for this predicate
+                    order = 0  # number of out edges for this predicate  # number of out edges for this predicate
                     if not self.args or not self.args.saveMemory:
                         feat_idx += 1
                     sim_name = line.lower()
                     # print ("line was: ", line)
                     #cos: 0, lin's prob: 1, etc
 
-                else:  # the actual lines of similarity scores, such as: (记录.1,记录.2)#art_1#art_2 0.23808833179205025
+                else:  # the actual lines of similarity scores, such as: (记录.1,记录.2)#art_1#art_2 0.23808833179205025  # the actual lines of similarity scores, such as: (记录.1,记录.2)#art_1#art_2 0.23808833179205025
                     #Now, we've got sth interesting!
                     if self.args and self.args.saveMemory and not "binc" in sim_name:  # only calculate BInc in saveMemory mode -- Teddy
                         continue
@@ -179,7 +182,8 @@ class Graph:
                     try:
                         ss = line.split(" ")
                         assert len(ss) == 2
-                        nPred = ss[0]  # name of predicate
+                        assert len(ss) == 2
+                        nPred = ss[0]  # name of predicate  # name of predicate
                         if self.args.CCG and Graph.is_conjunction(nPred):
                             continue
                         sim = ss[1]
@@ -188,10 +192,10 @@ class Graph:
 
                     order += 1
 
-                    if self.args.maxRank and order>self.args.maxRank:  # if number of edges exceeds threshold (if specified) -- Teddy
+                    if self.args.maxRank and order>self.args.maxRank:  # if number of edges exceeds threshold (if specified) -- Teddy  # if number of edges exceeds threshold (if specified) -- Teddy
                         continue
 
-                    if nPred not in self.pred2Node:  # the target predicate node.
+                    if nPred not in self.pred2Node:  # the target predicate node.  # the target predicate node.
                         nIdx = len(self.nodes)
                         nNode = Node(nPred,nIdx)
                         self.insertNode(nNode)
@@ -203,8 +207,8 @@ class Graph:
                     node.add_sim(nNode,sim,feat_idx,order)
 
         f.close()
-        if debug:
-            print ("num edges in gr: ", Graph.num_edges, str(Graph.threshold), Graph.num_edges_threshold, gpath)
+
+        print ("num edges in gr: ", Graph.num_edges, str(Graph.threshold), Graph.num_edges_threshold, gpath)
 
         self.idxes = range(len(self.nodes))
 
@@ -217,11 +221,12 @@ class Graph:
                 return
 
             # (pred.1, pred.2)#type_1#type_2
+            # (pred.1, pred.2)#type_1#type_2
             ss = node.id.replace("_1", "").replace("_2", "").split("#")
-            unaries = ss[0][1:-1].split(",") # [pred.1, pred.2]
+            unaries = ss[0][1:-1].split(",") # [pred.1, pred.2] # [pred.1, pred.2]
 
-            thisType0 = ss[1] # type
-            thisType1 = ss[2] # type
+            thisType0 = ss[1] # type # type
+            thisType1 = ss[2] # type # type
             unaries[0] += "#"+ thisType0
             unaries[1] += "#"+ thisType1
 
@@ -463,7 +468,7 @@ class OEdge:
     def __init__(self,idx,sims=None,orders=None,p=-1,w=-1):
         self.idx = idx
         if sims is None:
-            self.sims = np.zeros(shape=(Graph.num_feats//2))  # why?
+            self.sims = np.zeros(shape=(Graph.num_feats//2))  # why?  # why?
             self.orders = np.zeros(shape=(Graph.num_feats//2))
             #To be set in setWPs
             self.p = -1
